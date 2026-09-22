@@ -1,4 +1,6 @@
 import type { CSSProperties } from "react";
+import mcciaLogoPng from "./assets/mccia-logo.png";
+import mcciaLogoSolidPng from "./assets/mccia-logo-solid.png";
 
 interface McciaLogoProps {
   className?: string;
@@ -24,7 +26,7 @@ export function McciaLogo({
 
   const image = (
     <img
-      src="/mccia-logo.png"
+      src={mcciaLogoPng}
       alt={alt}
       className={`mccia-logo-img ${className}`.trim()}
       style={{
@@ -38,8 +40,8 @@ export function McciaLogo({
       }}
       onError={(e) => {
         const target = e.currentTarget as HTMLImageElement;
-        if (!target.src.endsWith("mccia-logo-solid.png")) {
-          target.src = "/mccia-logo-solid.png";
+        if (target.src !== mcciaLogoSolidPng) {
+          target.src = mcciaLogoSolidPng;
         }
       }}
     />
@@ -91,7 +93,7 @@ export function McciaMark({ size = 32 }: { size?: number }) {
       }}
     >
       <img
-        src="/mccia-logo.png"
+        src={mcciaLogoPng}
         alt="MCCIA"
         style={{
           width: "100%",
