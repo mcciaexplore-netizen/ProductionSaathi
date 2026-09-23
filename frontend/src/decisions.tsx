@@ -3,7 +3,6 @@ import {
   ArrowRight,
   ArrowUpRight,
   ArrowsClockwise,
-  CalendarBlank,
   Check,
   CheckCircle,
   Clock,
@@ -21,7 +20,6 @@ import {
 import { api, post, fmt, money, futureDate, statusClass } from "./api";
 import type { Data, Row, Run } from "./api";
 import { Badge, Empty, Field, Modal, OrderFields, Panel } from "./ui";
-import { PlanningEvidence } from "./evidence";
 function ReviewActions({
   id,
   canApprove,
@@ -118,11 +116,10 @@ export function PromiseChecker({
     });
   return (
     <>
-      <PlanningEvidence readiness={data.readiness} result={result?.result} />
       <div className="promise-layout">
         <Panel
-          title="The customer’s request"
-          sub="Check without changing your approved schedule"
+          title="Customer Order Request"
+          sub="Check if you can deliver on time without guessing"
           className="promise-form"
         >
           <form
@@ -140,16 +137,9 @@ export function PromiseChecker({
                 setOptions([]);
               }}
             />
-            <div className="promise-safety">
-              <ShieldCheck size={21} />
-              <p>
-                Existing approved operations stay fixed. Review blocked work,
-                data freshness and every customer commitment before accepting.
-              </p>
-            </div>
-            <button disabled={busy} className="primary full">
+            <button disabled={busy} className="primary full" style={{ marginTop: "16px" }}>
               <Target size={20} />
-              Check delivery feasibility <ArrowRight size={18} />
+              Can We Deliver On Time? <ArrowRight size={18} />
             </button>
           </form>
         </Panel>
@@ -383,19 +373,11 @@ export function Simulator({
 }) {
   const types = [
     ["breakdown", "Machine breakdown", "resources", Wrench],
-    ["material_delay", "Material delay", "materials", Truck],
-    ["operator_absence", "Operator absence", "auxiliaries", Users],
-    ["overtime", "Overtime", "resources", Clock],
-    ["additional_shift", "Additional shift", "resources", CalendarBlank],
-    ["maintenance", "Maintenance extension", "resources", GearSix],
-    ["supplier_delay", "Supplier delay", "suppliers", Truck],
-    ["production_delay", "Production delay", "resources", Clock],
-    ["quality_hold", "Material quality hold", "materials", ShieldCheck],
-    ["quantity", "Quantity increase", "orders", Plus],
-    ["delivery_date", "Delivery-date change", "orders", CalendarBlank],
-    ["alternative_machine", "Alternative machine", "resources", GearSix],
-    ["outsource", "Qualified outsourcing", "resources", Truck],
-    ["split_quantity", "Split transfer batches", "products", GitBranch],
+    ["overtime", "Add Overtime Shift", "resources", Clock],
+    ["material_delay", "Material delivery delay", "materials", Truck],
+    ["operator_absence", "Operator absent", "auxiliaries", Users],
+    ["maintenance", "Emergency maintenance", "resources", GearSix],
+    ["outsource", "Subcontract / Outsource", "resources", Truck],
   ] as const;
   const [kind, setKind] = useState("breakdown"),
     [target, setTarget] = useState(data.factory.resources[0]?.id || ""),
@@ -700,7 +682,6 @@ export function Versions({
               Approve & activate
             </button>
           </div>
-          <PlanningEvidence result={p} />
           <div className="recovery-actions">
             <a
               className="secondary"

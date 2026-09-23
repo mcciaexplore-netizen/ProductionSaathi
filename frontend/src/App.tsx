@@ -11,9 +11,7 @@ import {
   FileArrowUp,
   GearSix,
   GitBranch,
-  HardDrives,
   List,
-  Package,
   ShieldCheck,
   SignOut,
   SlidersHorizontal,
@@ -23,50 +21,39 @@ import {
   X,
   CaretDown,
   Cube,
-  Lightning,
 } from "@phosphor-icons/react";
 import { api, post, fmt } from "./api";
 import type { Data, Row, Run } from "./api";
 import { Badge, Empty, Field, Modal } from "./ui";
-import { Dashboard, Bottlenecks, Gantt, OperationsTable } from "./planning";
+import { Dashboard, Bottlenecks, ProductionPlanView } from "./planning";
 import { PromiseChecker, Simulator, Versions } from "./decisions";
-import { Orders, MasterData, Reports, Imports, Settings } from "./masters";
+import { FactoryMasters, Reports, Imports, Settings } from "./masters";
 import { ShopFloor } from "./execution";
 import { McciaLogo } from "./McciaLogo";
 import "./App.css";
 
 const navigation = [
   {
-    group: "WORKSPACE",
+    group: "OPERATIONS",
     items: [
       ["Dashboard", SquaresFour],
       ["Promise Checker", Target],
-      ["Orders", Package],
       ["Production Plan", CalendarBlank],
       ["Shop Floor", CheckCircle],
     ],
   },
   {
-    group: "PLAN & RESPOND",
+    group: "DECISIONS & RECOVERY",
     items: [
       ["Bottlenecks", ChartBar],
-      ["What-If Simulator", SlidersHorizontal],
-      ["Disruptions", Lightning],
+      ["Simulations & Crises", SlidersHorizontal],
       ["Rescheduling", ArrowsClockwise],
     ],
   },
   {
-    group: "FACTORY DATA",
+    group: "FACTORY DATA & REPORTS",
     items: [
-      ["Products", Cube],
-      ["Routings", GitBranch],
-      ["Resources", HardDrives],
-      ["Materials", Package],
-    ],
-  },
-  {
-    group: "MANAGE",
-    items: [
+      ["Factory Masters", Cube],
       ["Reports", ChartLineUp],
       ["Imports", FileArrowUp],
       ["Settings", GearSix],
@@ -76,18 +63,13 @@ const navigation = [
 
 const descriptions: Record<string, string> = {
   Dashboard: "A clear view of your factory’s delivery commitments.",
-  Orders: "Every customer commitment, connected to a feasible plan.",
-  Products: "Products, transfer batches and material requirements.",
-  Routings: "How work flows through your factory.",
-  Resources: "Finite capacity. Real availability.",
-  Materials: "Keep the right material ahead of production.",
-  "Production Plan": "The approved plan, down to every operation.",
+  "Production Plan": "Customer orders, shift timeline (Gantt), and operation sequences.",
   "Shop Floor": "Record actual progress and reconcile completed production.",
   "Promise Checker": "A confident answer before you commit.",
-  Bottlenecks: "Find the constraints behind delivery risk.",
-  "What-If Simulator": "Explore a change before it reaches the shop floor.",
-  Disruptions: "Respond to changes with a clear view of the impact.",
+  Bottlenecks: "Overloaded machines and delivery risk summary.",
+  "Simulations & Crises": "Test what-if improvements and respond to live shop-floor disruptions with 1-click.",
   Rescheduling: "Compare, approve and activate the next production plan.",
+  "Factory Masters": "Products, Machines, Materials, and Routings in one clean place.",
   Reports: "Share the numbers behind your delivery performance.",
   Imports: "Start with the spreadsheets you already use.",
   Settings: "Your factory, calendars and planning priorities.",
@@ -466,15 +448,6 @@ export default function App() {
                   canPromise={canPromise}
                 />
               )}
-              {page === "Orders" && (
-                <Orders
-                  data={data}
-                  editable={canWrite}
-                  run={run}
-                  refresh={refresh}
-                  inspect={inspectOrder}
-                />
-              )}
               {page === "Promise Checker" && canPromise && (
                 <PromiseChecker
                   data={data}
@@ -483,40 +456,22 @@ export default function App() {
                   onProposal={showProposal}
                 />
               )}
-              {page === "Production Plan" &&
-                (plan ? (
-                  <>
-                    <div className="plan-status">
-                      <ShieldCheck size={18} />
-                      <strong>
-                        Approved schedule · v{data.active_version}
-                      </strong>
-                      <span>
-                        {plan.operations.length} operations ·{" "}
-                        {plan.orders.length} orders
-                      </span>
-                      <Badge value={plan.solver_status} />
-                    </div>
-                    <Gantt
-                      plan={plan}
-                      factory={data.approved_factory || f!}
-                      onSelect={setInspect}
-                    />
-                    <OperationsTable plan={plan} />
-                  </>
-                ) : (
-                  <Empty
-                    title="No approved schedule yet"
-                    body="Build a proposed plan, review its impact and activate it from Rescheduling."
-                  />
-                ))}
+              {page === "Production Plan" && (
+                <ProductionPlanView
+                  data={data}
+                  inspect={inspectOrder}
+                  editable={canWrite}
+                  run={run}
+                  refresh={refresh}
+                />
+              )}
               {page === "Bottlenecks" && (
                 <Bottlenecks data={data} go={go} inspect={inspectOrder} />
               )}
-              {(page === "What-If Simulator" || page === "Disruptions") && (
+              {page === "Simulations & Crises" && (
                 <Simulator
                   data={data}
-                  disruption={page === "Disruptions"}
+                  disruption={false}
                   allowed={canSimulate}
                   busy={!!busy}
                   run={run}
@@ -537,12 +492,8 @@ export default function App() {
                   notice={setNotice}
                 />
               )}
-              {["Products", "Routings", "Resources", "Materials"].includes(
-                page,
-              ) && (
-                <MasterData
-                  key={page}
-                  page={page}
+              {(page === "Factory Masters" || ["Products", "Routings", "Resources", "Materials"].includes(page)) && (
+                <FactoryMasters
                   data={data}
                   editable={canWrite}
                   run={run}

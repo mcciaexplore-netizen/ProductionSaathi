@@ -245,6 +245,31 @@ export function Orders({
     </>
   );
 }
+export function FactoryMasters(props: EditorProps) {
+  const [tab, setTab] = useState("Products");
+  return (
+    <>
+      <div className="tabs" style={{ marginBottom: "20px" }}>
+        {[
+          ["Products", "📦 Products & BOM"],
+          ["Resources", "⚙️ Machines & Resources"],
+          ["Materials", "🧱 Raw Materials"],
+          ["Routings", "🔄 Routings & Steps"],
+        ].map(([key, label]) => (
+          <button
+            key={key}
+            className={tab === key ? "active" : ""}
+            onClick={() => setTab(key)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <MasterData key={tab} page={tab} {...props} />
+    </>
+  );
+}
+
 export function MasterData({
   page,
   data,

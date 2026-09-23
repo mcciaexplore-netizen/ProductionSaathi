@@ -13,9 +13,9 @@ import {
   Warning,
 } from "@phosphor-icons/react";
 import { fmt } from "./api";
-import type { Data, Row } from "./api";
-import { Badge, OrderTable, Panel } from "./ui";
-import { DependencyEvidence } from "./evidence";
+import type { Data, Row, Run } from "./api";
+import { Badge, Empty, OrderTable, Panel } from "./ui";
+import { Orders } from "./masters";
 export function Dashboard({
   data,
   go,
@@ -263,6 +263,214 @@ export function Dashboard({
     </>
   );
 }
+export function ShiftDispatchBoard({
+  plan,
+  factory,
+  onSelect,
+}: {
+  plan: Row;
+  factory: Row;
+  onSelect: (r: Row) => void;
+}) {
+  const [selectedMachine, setSelectedMachine] = useState("All");
+  const resources = factory.resources || [];
+  const operations = plan.operations || [];
+
+  const machinesToDisplay = selectedMachine === "All"
+    ? resources
+    : resources.filter((r: Row) => r.id === selectedMachine);
+
+  return (
+    <div style={{ display: "grid", gap: "18px" }}>
+      <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+        <span style={{ fontWeight: 600, fontSize: "13px", color: "#475569" }}>Filter by Machine:</span>
+        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+          <button
+            className={selectedMachine === "All" ? "primary" : "secondary"}
+            style={{ padding: "4px 12px", fontSize: "12px" }}
+            onClick={() => setSelectedMachine("All")}
+          >
+            All Machines ({resources.length})
+          </button>
+          {resources.map((r: Row) => (
+            <button
+              key={r.id}
+              className={selectedMachine === r.id ? "primary" : "secondary"}
+              style={{ padding: "4px 12px", fontSize: "12px" }}
+              onClick={() => setSelectedMachine(r.id)}
+            >
+              {r.id}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "16px" }}>
+        {machinesToDisplay.map((r: Row) => {
+          const machineOps = operations.filter((o: Row) => o.resource_id === r.id);
+          return (
+            <div
+              key={r.id}
+              style={{
+                background: "#ffffff",
+                border: "1px solid #e2e8f0",
+                borderRadius: "10px",
+                padding: "16px",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                <div>
+                  <strong style={{ fontSize: "15px", color: "#0a2540" }}>{r.name || r.id}</strong>
+                  <span style={{ display: "block", fontSize: "11px", color: "#64748b" }}>{r.id} · {r.department || "Machine Line"}</span>
+                </div>
+                <span
+                  style={{
+                    background: machineOps.length > 0 ? "#e0f2fe" : "#f1f5f9",
+                    color: machineOps.length > 0 ? "#0369a1" : "#64748b",
+                    padding: "2px 8px",
+                    borderRadius: "12px",
+                    fontSize: "11px",
+                    fontWeight: 600,
+                  }}
+                >
+                  {machineOps.length} Jobs Scheduled
+                </span>
+              </div>
+
+              {machineOps.length === 0 ? (
+                <div style={{ padding: "16px", textAlign: "center", background: "#f8fafc", borderRadius: "6px", color: "#94a3b8", fontSize: "12px" }}>
+                  No jobs queued for this machine
+                </div>
+              ) : (
+                <div style={{ display: "grid", gap: "8px" }}>
+                  {machineOps.map((op: Row) => {
+                    const isLate = plan.orders.find((x: Row) => x.id === op.order_id)?.status === "LATE";
+                    return (
+                      <div
+                        key={op.id}
+                        onClick={() => onSelect(op)}
+                        style={{
+                          padding: "10px 12px",
+                          borderRadius: "6px",
+                          background: isLate ? "#fef2f2" : "#f8fafc",
+                          border: "1px solid " + (isLate ? "#fecaca" : "#e2e8f0"),
+                          cursor: "pointer",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                        }}
+                      >
+                        <div>
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                            <strong style={{ fontSize: "13px", color: isLate ? "#991b1b" : "#0f172a" }}>
+                              {op.order_id}
+                            </strong>
+                            <span style={{ fontSize: "11px", color: "#64748b" }}>· {op.operation}</span>
+                          </div>
+                          <span style={{ fontSize: "11px", color: "#64748b" }}>
+                            Batch: <strong>{op.quantity} pcs</strong> · Start: {fmt(op.start, true)}
+                          </span>
+                        </div>
+                        <span
+                          style={{
+                            fontSize: "10px",
+                            padding: "2px 6px",
+                            borderRadius: "4px",
+                            background: isLate ? "#dc2626" : "#229e45",
+                            color: "#ffffff",
+                            fontWeight: 600,
+                          }}
+                        >
+                          {isLate ? "LATE" : "ON TIME"}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export function ProductionPlanView({
+  data,
+  inspect,
+  editable,
+  run,
+  refresh,
+}: {
+  data: Data;
+  inspect: (id: string) => void;
+  editable: boolean;
+  run: Run;
+  refresh: () => Promise<void>;
+}) {
+  const [tab, setTab] = useState("Orders");
+  const plan = data.plan;
+  const f = data.approved_factory || data.factory;
+
+  return (
+    <>
+      <div className="tabs" style={{ marginBottom: "20px" }}>
+        {[
+          ["Orders", "📋 Customer Orders"],
+          ["Dispatch", "🏭 Machine Dispatch Board"],
+          ["Operations", "⚙️ All Operations List"],
+        ].map(([key, label]) => (
+          <button
+            key={key}
+            className={tab === key ? "active" : ""}
+            onClick={() => setTab(key)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "Orders" && (
+        <Orders
+          data={data}
+          editable={editable}
+          run={run}
+          refresh={refresh}
+          inspect={inspect}
+        />
+      )}
+
+      {tab === "Dispatch" && (
+        plan ? (
+          <ShiftDispatchBoard
+            plan={plan}
+            factory={f}
+            onSelect={(r: Row) => inspect(r.order_id || r.id)}
+          />
+        ) : (
+          <Empty
+            title="No approved schedule yet"
+            body="Build a proposed plan and activate it to view machine assignments."
+          />
+        )
+      )}
+
+      {tab === "Operations" && (
+        plan ? (
+          <OperationsTable plan={plan} />
+        ) : (
+          <Empty
+            title="No approved operations"
+            body="Approve a plan to view operation sequences."
+          />
+        )
+      )}
+    </>
+  );
+}
+
 export function Gantt({
   plan,
   factory,
@@ -552,60 +760,144 @@ export function Bottlenecks({
   inspect: (id: string) => void;
 }) {
   const p = data.plan;
+  const critical = p?.bottlenecks?.filter((r: Row) => r.utilization >= 85) || [];
+  const normal = p?.bottlenecks?.filter((r: Row) => r.utilization < 85) || [];
+
   return (
     <>
-      <DependencyEvidence />
-      <div className="section-callout">
-        <Warning size={24} />
-        <div>
-          <strong>Capacity is only one part of the delivery picture.</strong>
-          <p>
-            Review materials, shared fixtures and vendor lead time alongside
-            resource utilization.
-          </p>
+      <div className="metric-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)", marginBottom: "22px" }}>
+        <div className="metric" style={{ borderLeft: "4px solid " + (critical.length > 0 ? "#dc2626" : "#229e45") }}>
+          <div className="metric-top">
+            <span>Overloaded Machines</span>
+            <Warning size={18} color={critical.length > 0 ? "#dc2626" : "#229e45"} />
+          </div>
+          <strong style={{ color: critical.length > 0 ? "#dc2626" : "#229e45" }}>
+            {critical.length}
+          </strong>
+          <div className="metric-foot">
+            {critical.length > 0 ? "Running above 85% capacity" : "All machines running smoothly"}
+          </div>
         </div>
-        <button className="secondary" onClick={() => go("What-If Simulator")}>
-          Test a recovery <ArrowRight size={17} />
-        </button>
+
+        <div className="metric" style={{ borderLeft: "4px solid #229e45" }}>
+          <div className="metric-top">
+            <span>Normal Running Machines</span>
+            <CheckCircle size={18} color="#229e45" />
+          </div>
+          <strong style={{ color: "#229e45" }}>{normal.length}</strong>
+          <div className="metric-foot">Healthy capacity available</div>
+        </div>
+
+        <div className="metric" style={{ borderLeft: "4px solid " + (p?.orders?.filter((o: Row) => o.status !== "ON TIME")?.length ? "#ea580c" : "#229e45") }}>
+          <div className="metric-top">
+            <span>Orders at Risk</span>
+            <TrendUp size={18} color={p?.orders?.filter((o: Row) => o.status !== "ON TIME")?.length ? "#ea580c" : "#229e45"} />
+          </div>
+          <strong style={{ color: p?.orders?.filter((o: Row) => o.status !== "ON TIME")?.length ? "#ea580c" : "#229e45" }}>
+            {p?.orders?.filter((o: Row) => o.status !== "ON TIME")?.length || 0}
+          </strong>
+          <div className="metric-foot">Delivery dates needing review</div>
+        </div>
       </div>
+
+      {critical.length > 0 && (
+        <Panel
+          title="⚠️ Machines with Work Overload"
+          sub="These machines are creating production delays. Click 'Solve with What-If' to test overtime or shifts."
+        >
+          <div style={{ display: "grid", gap: "12px" }}>
+            {critical.map((r: Row) => (
+              <div
+                key={r.resource_id}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "16px",
+                  background: "#fff7ed",
+                  borderRadius: "8px",
+                  border: "1px solid #fed7aa",
+                  flexWrap: "wrap",
+                  gap: "12px",
+                }}
+              >
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    <strong style={{ fontSize: "16px" }}>{r.name || r.resource_id} ({r.resource_id})</strong>
+                    <span
+                      style={{
+                        background: "#ea580c",
+                        color: "#fff",
+                        padding: "2px 8px",
+                        borderRadius: "12px",
+                        fontSize: "12px",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {r.utilization}% Busy
+                    </span>
+                  </div>
+                  <p style={{ margin: "6px 0 0", color: "#7c2d12", fontSize: "13px" }}>
+                    <strong>Load:</strong> {r.load_hours} hrs of work scheduled (Capacity: {r.capacity_hours} hrs)
+                  </p>
+                  <p style={{ margin: "4px 0 0", color: "#9a3412", fontSize: "13px" }}>
+                    👉 <strong>Suggested Fix:</strong> {r.action || "Add 2 hours overtime or shift unstarted batch to backup machine"}
+                  </p>
+                </div>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <button
+                    className="primary"
+                    style={{ padding: "8px 14px", fontSize: "13px" }}
+                    onClick={() => go("What-If Simulator")}
+                  >
+                    Simulate Overtime / Shift
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      )}
+
       <Panel
-        title="Resource constraints"
-        sub="First seven days of the approved plan; finite capacity prevents overload."
+        title="All Machine Workloads"
+        sub="Current load status for every machine across the factory."
       >
         <div className="table-scroll">
           <table>
             <thead>
               <tr>
-                <th>Resource</th>
-                <th>Utilization</th>
-                <th>Load / capacity</th>
-                <th>Affected orders</th>
-                <th>Suggested action</th>
+                <th>Machine / Station</th>
+                <th>Status</th>
+                <th>Work Load</th>
+                <th>Available Capacity</th>
+                <th>Orders Scheduled</th>
               </tr>
             </thead>
             <tbody>
               {p?.bottlenecks?.map((r: Row) => (
                 <tr key={r.resource_id}>
                   <td>
-                    <strong>{r.resource_id}</strong>
-                    <span className="cell-sub">{r.name}</span>
+                    <strong>{r.name || r.resource_id}</strong>
+                    <span className="cell-sub">{r.resource_id}</span>
                   </td>
                   <td>
-                    <div className="utilization">
-                      <span className={r.utilization >= 85 ? "amber-text" : ""}>
-                        {r.utilization}%
-                      </span>
-                      <div>
-                        <i
-                          style={{ width: r.utilization + "%" }}
-                          className={r.utilization >= 85 ? "amber-bg" : ""}
-                        />
-                      </div>
-                    </div>
+                    <span
+                      style={{
+                        display: "inline-block",
+                        padding: "3px 8px",
+                        borderRadius: "12px",
+                        fontSize: "12px",
+                        fontWeight: 600,
+                        background: r.utilization >= 85 ? "#fee2e2" : "#dcfce7",
+                        color: r.utilization >= 85 ? "#991b1b" : "#166534",
+                      }}
+                    >
+                      {r.utilization >= 85 ? `⚠️ Overloaded (${r.utilization}%)` : `✓ Normal (${r.utilization}%)`}
+                    </span>
                   </td>
-                  <td>
-                    {r.load_hours} / {r.capacity_hours} h
-                  </td>
+                  <td><strong>{r.load_hours} hrs</strong></td>
+                  <td>{r.capacity_hours} hrs</td>
                   <td>
                     <div className="order-chips">
                       {r.affected_orders.slice(0, 3).map((o: string) => (
@@ -618,16 +910,16 @@ export function Bottlenecks({
                       )}
                     </div>
                   </td>
-                  <td className="wrap-cell">{r.action}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       </Panel>
+
       <Panel
-        title="Delivery alerts"
-        sub="Each alert links back to its scheduling evidence."
+        title="Customer Delivery Status"
+        sub="Orders projected to be late or at risk based on machine availability."
       >
         <div className="alerts-grid">
           {p?.orders
@@ -648,7 +940,7 @@ export function Bottlenecks({
                     `Projected dispatch ${fmt(o.completion, true)} against commitment ${fmt(o.due, true)}.`}
                 </p>
                 <span>
-                  Review evidence and recovery actions <ArrowRight size={14} />
+                  Inspect order details <ArrowRight size={14} />
                 </span>
               </button>
             ))}
