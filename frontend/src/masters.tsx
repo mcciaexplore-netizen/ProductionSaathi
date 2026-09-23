@@ -19,7 +19,7 @@ import {
 } from "@phosphor-icons/react";
 import { api, post, fmt, money, futureDate } from "./api";
 import type { Data, Row, Run } from "./api";
-import { Badge, Field, JsonEditor, Modal, OrderFields, Panel } from "./ui";
+import { Badge, Field, Modal, OrderFields, Panel } from "./ui";
 type EditorProps = {
   data: Data;
   editable: boolean;
@@ -521,12 +521,207 @@ export function MasterData({
         </Panel>
       )}
       {edit && (
-        <JsonEditor
+        <Modal
           title={"Edit " + page.slice(0, -1).toLowerCase()}
-          value={edit}
           close={() => setEdit(null)}
-          onSave={save}
-        />
+        >
+          <form
+            className="detail-body"
+            onSubmit={(e) => {
+              e.preventDefault();
+              save(edit);
+            }}
+          >
+            <Field label="ID">
+              <input
+                value={edit.id}
+                onChange={(e) => setEdit({ ...edit, id: e.target.value })}
+                required
+              />
+            </Field>
+            {page === "Resources" ? (
+              <>
+                <Field label="Resource name">
+                  <input
+                    value={edit.name || ""}
+                    onChange={(e) =>
+                      setEdit({ ...edit, name: e.target.value })
+                    }
+                    required
+                  />
+                </Field>
+                <div className="form-grid">
+                  <Field label="Type">
+                    <select
+                      value={edit.type}
+                      onChange={(e) =>
+                        setEdit({ ...edit, type: e.target.value })
+                      }
+                    >
+                      {["Machine", "Line", "Station", "Worker", "Tool"].map((x) => (
+                        <option key={x}>{x}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Department">
+                    <input
+                      value={edit.department || ""}
+                      onChange={(e) =>
+                        setEdit({ ...edit, department: e.target.value })
+                      }
+                    />
+                  </Field>
+                </div>
+                <div className="form-grid">
+                  <Field label="Simultaneous capacity">
+                    <input
+                      type="number"
+                      min="1"
+                      value={edit.capacity || 1}
+                      onChange={(e) =>
+                        setEdit({ ...edit, capacity: Number(e.target.value) })
+                      }
+                    />
+                  </Field>
+                  <Field label="Operating cost (₹/h)">
+                    <input
+                      type="number"
+                      min="0"
+                      value={edit.cost_per_hour || 0}
+                      onChange={(e) =>
+                        setEdit({
+                          ...edit,
+                          cost_per_hour: Number(e.target.value),
+                        })
+                      }
+                    />
+                  </Field>
+                </div>
+              </>
+            ) : page === "Materials" ? (
+              <>
+                <Field label="Description">
+                  <input
+                    value={edit.description || ""}
+                    onChange={(e) =>
+                      setEdit({ ...edit, description: e.target.value })
+                    }
+                    required
+                  />
+                </Field>
+                <div className="form-grid">
+                  <Field label="Current stock">
+                    <input
+                      type="number"
+                      min="0"
+                      value={edit.stock || 0}
+                      onChange={(e) =>
+                        setEdit({ ...edit, stock: Number(e.target.value) })
+                      }
+                    />
+                  </Field>
+                  <Field label="Safety stock">
+                    <input
+                      type="number"
+                      min="0"
+                      value={edit.safety_stock || 0}
+                      onChange={(e) =>
+                        setEdit({
+                          ...edit,
+                          safety_stock: Number(e.target.value),
+                        })
+                      }
+                    />
+                  </Field>
+                </div>
+                <div className="form-grid">
+                  <Field label="Incoming supply">
+                    <input
+                      type="number"
+                      min="0"
+                      value={edit.incoming || 0}
+                      onChange={(e) =>
+                        setEdit({ ...edit, incoming: Number(e.target.value) })
+                      }
+                    />
+                  </Field>
+                  <Field label="Expected arrival">
+                    <input
+                      type="datetime-local"
+                      value={edit.arrival?.slice(0, 16) || ""}
+                      onChange={(e) =>
+                        setEdit({ ...edit, arrival: e.target.value || null })
+                      }
+                    />
+                  </Field>
+                </div>
+              </>
+            ) : page === "Products" ? (
+              <>
+                <Field label="Product name">
+                  <input
+                    value={edit.name || ""}
+                    onChange={(e) =>
+                      setEdit({ ...edit, name: e.target.value })
+                    }
+                    required
+                  />
+                </Field>
+                <div className="form-grid">
+                  <Field label="Routing ID">
+                    <select
+                      value={edit.routing_id}
+                      onChange={(e) =>
+                        setEdit({ ...edit, routing_id: e.target.value })
+                      }
+                    >
+                      {data.factory.routings.map((r: Row) => (
+                        <option key={r.id} value={r.id}>
+                          {r.name} ({r.id})
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Batch size (pcs)">
+                    <input
+                      type="number"
+                      min="1"
+                      value={edit.batch_size || 100}
+                      onChange={(e) =>
+                        setEdit({ ...edit, batch_size: Number(e.target.value) })
+                      }
+                    />
+                  </Field>
+                </div>
+                <Field label="Lead time (days)">
+                  <input
+                    type="number"
+                    min="0"
+                    value={edit.lead_time_days || 1}
+                    onChange={(e) =>
+                      setEdit({
+                        ...edit,
+                        lead_time_days: Number(e.target.value),
+                      })
+                    }
+                  />
+                </Field>
+              </>
+            ) : (
+              <Field label="Routing name">
+                <input
+                  value={edit.name || ""}
+                  onChange={(e) => setEdit({ ...edit, name: e.target.value })}
+                  required
+                />
+              </Field>
+            )}
+            <p className="fine-print">
+              For bulk changes, use Excel Imports in the Manage menu.
+            </p>
+            <button className="primary">Save {page.slice(0, -1).toLowerCase()}</button>
+          </form>
+        </Modal>
       )}
     </>
   );
@@ -537,28 +732,44 @@ export function Reports({ data }: { data: Data }) {
       <div className="report-grid">
         {[
           {
-            title: "Delivery performance",
-            desc: "Customer commitments, projected dispatch, delivery risk and tardiness.",
-            kind: "delivery",
-            icon: Truck,
+            title: "Daily Material Shortage Report",
+            desc: "Identifies raw materials running low or creating risk for active orders in the next 3 days.",
+            kind: "material-shortage",
+            format: "CSV",
+            url: "/api/reports/material-shortage",
+            icon: Warning,
           },
           {
-            title: "Production dispatch list",
-            desc: "Every operation, resource assignment, batch, start and finish time.",
-            kind: "operations",
+            title: "Shift-wise Machine Job-Cards",
+            desc: "Supervisor dispatch sheet per machine with scheduled batch, operator and tooling.",
+            kind: "job-cards",
+            format: "CSV",
+            url: "/api/reports/job-cards",
             icon: CalendarBlank,
           },
           {
-            title: "Capacity & bottlenecks",
-            desc: "Resource load, available hours, utilization and affected orders.",
+            title: "Delivery Performance & Risk",
+            desc: "Customer commitments, projected dispatch, delivery risk and tardiness status.",
+            kind: "delivery",
+            format: "CSV",
+            url: "/api/reports/delivery",
+            icon: Truck,
+          },
+          {
+            title: "Capacity & Machine Bottlenecks",
+            desc: "Resource load percentage, available hours, utilization and overloaded machines.",
             kind: "capacity",
+            format: "CSV",
+            url: "/api/reports/capacity",
             icon: ChartBar,
           },
           {
-            title: "Factory data backup",
-            desc: "All factory master data and optimization settings as portable JSON.",
-            kind: "factory",
-            icon: DownloadSimple,
+            title: "Export All Factory Data (Excel)",
+            desc: "Complete multi-sheet backup of all orders, materials, resources, and products.",
+            kind: "export-all",
+            format: "Excel (.xlsx)",
+            url: "/api/reports/export-all.xlsx",
+            icon: FileArrowUp,
           },
         ].map((r) => (
           <section className="report-card" key={r.kind}>
@@ -567,9 +778,9 @@ export function Reports({ data }: { data: Data }) {
             </span>
             <h2>{r.title}</h2>
             <p>{r.desc}</p>
-            <a className="secondary" href={"/api/reports/" + r.kind} download>
+            <a className="secondary" href={r.url} download>
               <DownloadSimple size={17} />
-              Download {r.kind === "factory" ? "JSON" : "CSV"}
+              Download {r.format}
             </a>
           </section>
         ))}
@@ -621,7 +832,7 @@ export function Imports({
   notice: (s: string) => void;
 }) {
   const [kind, setKind] = useState("Orders"),
-    [mapping, setMapping] = useState("{}"),
+    mapping = "{}",
     [lastImport, setLastImport] = useState<string | null>(null),
     [file, setFile] = useState<File | null>(null),
     [result, setResult] = useState<Row | null>(null);
@@ -701,23 +912,9 @@ export function Imports({
               ))}
             </select>
           </Field>
-          <details>
-            <summary>Map your column names (optional)</summary>
-            <Field label="Column mapping JSON">
-              <textarea
-                value={mapping}
-                onChange={(e) => {
-                  setMapping(e.target.value);
-                  setResult(null);
-                }}
-                placeholder={'{"Your Order No": "id"}'}
-              />
-            </Field>
-            <p>
-              Map spreadsheet headers to template headers. Unmapped headers
-              retain their names.
-            </p>
-          </details>
+          <p className="fine-print">
+            Spreadsheet headers matching template column names will be automatically mapped. Use the downloadable templates above for zero-error imports.
+          </p>
           {lastImport && (
             <button
               className="secondary"
@@ -989,10 +1186,6 @@ export function Settings({
               {[
                 ["horizon_days", "Planning horizon (days)"],
                 ["risk_buffer_hours", "Delivery risk buffer (hours)"],
-                ["late_order_weight", "Late-order weight"],
-                ["tardiness_weight", "Tardiness weight (per minute)"],
-                ["makespan_weight", "Makespan weight"],
-                ["cost_weight", "Production cost weight"],
                 ["overtime_cost_per_hour", "Overtime premium (₹/h)"],
               ].map(([key, label]) => (
                 <Field key={key} label={label}>
@@ -1155,27 +1348,202 @@ export function Settings({
         </>
       )}
       {editor && (
-        <JsonEditor
-          title="Edit factory configuration"
-          value={editor.value}
-          close={() => setEditor(null)}
-          onSave={(v) =>
-            run("Validating configuration", async () => {
-              const f = structuredClone(data.factory),
-                idx = f[editor.table].findIndex(
-                  (r: Row) => r.id === editor.value.id,
-                );
-              if (idx >= 0) f[editor.table][idx] = v;
-              else f[editor.table].push(v);
-              await api("/factory", {
-                method: "PUT",
-                body: JSON.stringify({ factory: f, revision: data.revision }),
+        <Modal title={"Edit " + editor.table} close={() => setEditor(null)}>
+          <form
+            className="detail-body"
+            onSubmit={(e) => {
+              e.preventDefault();
+              run("Saving configuration", async () => {
+                const f = structuredClone(data.factory),
+                  idx = f[editor.table].findIndex(
+                    (r: Row) => r.id === editor.value.id,
+                  );
+                if (idx >= 0) f[editor.table][idx] = editor.value;
+                else f[editor.table].push(editor.value);
+                await api("/factory", {
+                  method: "PUT",
+                  body: JSON.stringify({ factory: f, revision: data.revision }),
+                });
+                setEditor(null);
+                await refresh();
+                notice("Configuration updated.");
               });
-              setEditor(null);
-              await refresh();
-            })
-          }
-        />
+            }}
+          >
+            <Field label="ID">
+              <input
+                value={editor.value.id}
+                onChange={(e) =>
+                  setEditor({
+                    ...editor,
+                    value: { ...editor.value, id: e.target.value },
+                  })
+                }
+                required
+              />
+            </Field>
+            <Field label="Name / Description">
+              <input
+                value={editor.value.name || ""}
+                onChange={(e) =>
+                  setEditor({
+                    ...editor,
+                    value: { ...editor.value, name: e.target.value },
+                  })
+                }
+                required
+              />
+            </Field>
+            {editor.table === "customers" ? (
+              <div className="form-grid">
+                <Field label="Category">
+                  <select
+                    value={editor.value.category || "Regular"}
+                    onChange={(e) =>
+                      setEditor({
+                        ...editor,
+                        value: { ...editor.value, category: e.target.value },
+                      })
+                    }
+                  >
+                    {["VIP", "Key", "Regular", "Standard"].map((x) => (
+                      <option key={x}>{x}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Priority weight">
+                  <input
+                    type="number"
+                    min="1"
+                    value={editor.value.priority_weight || 1}
+                    onChange={(e) =>
+                      setEditor({
+                        ...editor,
+                        value: {
+                          ...editor.value,
+                          priority_weight: Number(e.target.value),
+                        },
+                      })
+                    }
+                  />
+                </Field>
+              </div>
+            ) : editor.table === "suppliers" ? (
+              <div className="form-grid">
+                <Field label="Lead time (days)">
+                  <input
+                    type="number"
+                    min="1"
+                    value={editor.value.lead_time_days || 1}
+                    onChange={(e) =>
+                      setEditor({
+                        ...editor,
+                        value: {
+                          ...editor.value,
+                          lead_time_days: Number(e.target.value),
+                        },
+                      })
+                    }
+                  />
+                </Field>
+                <Field label="Reliability (%)">
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={Math.round((editor.value.reliability || 0.95) * 100)}
+                    onChange={(e) =>
+                      setEditor({
+                        ...editor,
+                        value: {
+                          ...editor.value,
+                          reliability: Number(e.target.value) / 100,
+                        },
+                      })
+                    }
+                  />
+                </Field>
+              </div>
+            ) : editor.table === "auxiliaries" ? (
+              <div className="form-grid">
+                <Field label="Kind">
+                  <select
+                    value={editor.value.kind || "Operator"}
+                    onChange={(e) =>
+                      setEditor({
+                        ...editor,
+                        value: { ...editor.value, kind: e.target.value },
+                      })
+                    }
+                  >
+                    {["Operator", "Tool", "Fixture", "Team"].map((x) => (
+                      <option key={x}>{x}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Quantity available">
+                  <input
+                    type="number"
+                    min="1"
+                    value={editor.value.capacity || 1}
+                    onChange={(e) =>
+                      setEditor({
+                        ...editor,
+                        value: {
+                          ...editor.value,
+                          capacity: Number(e.target.value),
+                        },
+                      })
+                    }
+                  />
+                </Field>
+              </div>
+            ) : editor.table === "calendars" ? (
+              <div className="form-grid">
+                <Field label="Working Days (0=Mon to 6=Sun, comma-separated)">
+                  <input
+                    value={(editor.value.weekdays || [0, 1, 2, 3, 4, 5]).join(", ")}
+                    onChange={(e) =>
+                      setEditor({
+                        ...editor,
+                        value: {
+                          ...editor.value,
+                          weekdays: e.target.value
+                            .split(",")
+                            .map((v) => Number(v.trim()))
+                            .filter((v) => !isNaN(v) && v >= 0 && v <= 6),
+                        },
+                      })
+                    }
+                    placeholder="0, 1, 2, 3, 4, 5"
+                  />
+                </Field>
+                <Field label="Shift Window (Minutes from midnight, e.g. 480 to 960 is 8 AM to 4 PM)">
+                  <input
+                    value={(editor.value.shifts || [[480, 960]])
+                      .map(([a, b]: number[]) => `${a}-${b}`)
+                      .join(", ")}
+                    onChange={(e) => {
+                      const parsed = e.target.value
+                        .split(",")
+                        .map((s) => s.trim().split("-").map(Number))
+                        .filter((pair) => pair.length === 2 && !isNaN(pair[0]) && !isNaN(pair[1]));
+                      setEditor({
+                        ...editor,
+                        value: {
+                          ...editor.value,
+                          shifts: parsed.length ? parsed : [[480, 960]],
+                        },
+                      });
+                    }}
+                    placeholder="480-960 (08:00 - 16:00)"
+                  />
+                </Field>
+              </div>
+            ) : null}
+            <button className="primary">Save record</button>
+          </form>
+        </Modal>
       )}
     </>
   );

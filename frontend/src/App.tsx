@@ -710,16 +710,13 @@ function Login({
                   "manager",
                   "planner",
                   "sales",
-                  "supervisor",
-                  "purchase",
-                  "maintenance",
-                  "management",
-                  "admin",
                 ].map((r) => (
                   <option key={r} value={r}>
                     {r === "manager"
-                      ? "Production manager"
-                      : r.charAt(0).toUpperCase() + r.slice(1)}
+                      ? "Admin / Plant Head (Owner)"
+                      : r === "planner"
+                        ? "Planner / Floor Supervisor"
+                        : "Sales Representative (Promise Check)"}
                   </option>
                 ))}
               </select>

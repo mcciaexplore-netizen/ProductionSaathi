@@ -771,6 +771,50 @@ def create_app(db_path=None, *, db_schema=None):
             store.audit(db, u["username"], "Rolled back import", {"id": token})
         return {"ok": True}
 
+    @app.get("/api/reports/export-all.xlsx")
+    def report_export_all(u=Depends(user)):
+        f, rev, v = store.snapshot()
+        wb = openpyxl.Workbook()
+        # Remove default sheet
+        default_sheet = wb.active
+        
+        # Sheet 1: Orders
+        ws_orders = wb.create_sheet(title="Orders")
+        ws_orders.append(["Order ID", "Customer ID", "Product ID", "Quantity", "Order Date", "Requested Date", "Priority", "Status"])
+        for o in f.orders:
+            ws_orders.append([o.id, o.customer_id, o.product_id, o.quantity, o.order_date, o.requested_date, o.priority, o.status])
+            
+        # Sheet 2: Materials
+        ws_mat = wb.create_sheet(title="Materials")
+        ws_mat.append(["Material ID", "Description", "Stock", "Reserved", "Safety Stock", "Available", "Incoming", "Arrival Date", "Supplier"])
+        for m in f.materials:
+            avail = max(0, m.stock - m.reserved - m.safety_stock)
+            ws_mat.append([m.id, m.description, m.stock, m.reserved, m.safety_stock, avail, m.incoming, m.arrival or "", m.supplier_id or ""])
+            
+        # Sheet 3: Resources
+        ws_res = wb.create_sheet(title="Resources")
+        ws_res.append(["Resource ID", "Name", "Type", "Department", "Capacity", "Efficiency", "Cost/hr", "Calendar ID"])
+        for r in f.resources:
+            ws_res.append([r.id, r.name, r.type, r.department, r.capacity, r.efficiency, r.cost_per_hour, r.calendar_id])
+            
+        # Sheet 4: Products
+        ws_prod = wb.create_sheet(title="Products")
+        ws_prod.append(["Product ID", "Name", "Routing ID", "Batch Size", "Lead Time Days"])
+        for p in f.products:
+            ws_prod.append([p.id, p.name, p.routing_id, p.batch_size, p.lead_time_days])
+            
+        if default_sheet in wb.worksheets:
+            wb.remove(default_sheet)
+            
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        return Response(
+            buf.getvalue(),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": 'attachment; filename="factory_master_data.xlsx"'},
+        )
+
     @app.get("/api/reports/{kind}")
     def report(kind: str, u=Depends(user)):
         f, rev, v = store.snapshot()
@@ -782,17 +826,68 @@ def create_app(db_path=None, *, db_schema=None):
             )
         if not v:
             raise ValueError("No approved plan")
-        rows = (
-            v["result"]["operations"]
-            if kind == "operations"
-            else (
-                v["result"]["orders"]
-                if kind == "delivery"
-                else v["result"].get("bottlenecks", []) if kind == "capacity" else None
-            )
-        )
-        if rows is None:
+            
+        if kind == "material-shortage":
+            # Identify materials that will run out or are below safety stock within active plan
+            shortage_rows = []
+            for m in f.materials:
+                avail = m.stock - m.reserved - m.safety_stock
+                status = "CRITICAL SHORTAGE" if avail < 0 else "LOW BUFFER" if avail <= m.safety_stock else "OK"
+                if avail <= 0 or status != "OK":
+                    shortage_rows.append({
+                        "material_id": m.id,
+                        "description": m.description,
+                        "current_stock": m.stock,
+                        "allocated_reserved": m.reserved,
+                        "safety_stock": m.safety_stock,
+                        "net_shortage": abs(avail) if avail < 0 else 0,
+                        "incoming_replenishment": m.incoming,
+                        "expected_arrival": m.arrival or "No PO Arrival Scheduled",
+                        "supplier_id": m.supplier_id or "—",
+                        "urgency": status,
+                    })
+            if not shortage_rows:
+                shortage_rows.append({
+                    "material_id": "ALL_OK",
+                    "description": "No material shortages detected for active scheduled orders",
+                    "current_stock": "—",
+                    "allocated_reserved": "—",
+                    "safety_stock": "—",
+                    "net_shortage": 0,
+                    "incoming_replenishment": "—",
+                    "expected_arrival": "—",
+                    "supplier_id": "—",
+                    "urgency": "HEALTHY",
+                })
+            rows = shortage_rows
+
+        elif kind == "job-cards":
+            # Shift-wise printable machine job cards
+            ops = v["result"]["operations"]
+            job_rows = []
+            for op in sorted(ops, key=lambda x: (x.get("resource_id", ""), x.get("start", ""))):
+                job_rows.append({
+                    "machine_resource": op.get("resource_id"),
+                    "scheduled_start": op.get("start", "").replace("T", " ")[:16],
+                    "scheduled_finish": op.get("end", "").replace("T", " ")[:16],
+                    "order_no": op.get("order_id"),
+                    "batch_no": op.get("batch_id"),
+                    "operation_step": op.get("operation_name") or op.get("operation_id"),
+                    "assigned_operator": op.get("operator_id") or "Line Operator",
+                    "tooling_fixture": op.get("tool_id") or "Standard Tooling",
+                    "status": op.get("status", "SCHEDULED"),
+                })
+            rows = job_rows
+
+        elif kind == "operations":
+            rows = v["result"]["operations"]
+        elif kind == "delivery":
+            rows = v["result"]["orders"]
+        elif kind == "capacity":
+            rows = v["result"].get("bottlenecks", [])
+        else:
             raise HTTPException(404, "Unknown report")
+
         out = io.StringIO(newline="")
         if rows:
             writer = csv.DictWriter(out, fieldnames=list(rows[0]))
