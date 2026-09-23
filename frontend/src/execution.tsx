@@ -80,7 +80,13 @@ export function ShopFloor({
           : "RESUME",
     );
     setQuantity(o.quantity_completed);
-    setReason("");
+    setReason(
+      o.status === "NOT STARTED"
+        ? "Work started on schedule"
+        : o.status === "RUNNING"
+          ? "Shift progress update"
+          : "Work resumed",
+    );
   };
   const actions =
     op?.status === "NOT STARTED"
@@ -162,12 +168,49 @@ export function ShopFloor({
                     </td>
                     <td>
                       {editable && o.status !== "COMPLETE" && (
-                        <button
-                          className="btn secondary"
-                          onClick={() => choose(o)}
-                        >
-                          Record
-                        </button>
+                        <div style={{ display: "flex", gap: "6px" }}>
+                          {o.status === "NOT STARTED" && (
+                            <button
+                              className="btn primary"
+                              style={{ padding: "4px 10px", fontSize: "12px" }}
+                              onClick={() => {
+                                setEventError("");
+                                setSelected(o.id);
+                                setKind("START");
+                                setQuantity(0);
+                                setReason("Work started on schedule");
+                              }}
+                            >
+                              ▶ Start
+                            </button>
+                          )}
+                          {o.status === "RUNNING" && (
+                            <button
+                              className="btn primary"
+                              style={{
+                                padding: "4px 10px",
+                                fontSize: "12px",
+                                background: "#15803d",
+                              }}
+                              onClick={() => {
+                                setEventError("");
+                                setSelected(o.id);
+                                setKind("COMPLETE");
+                                setQuantity(o.quantity);
+                                setReason("Batch completed successfully");
+                              }}
+                            >
+                              ✓ Complete
+                            </button>
+                          )}
+                          <button
+                            className="btn secondary"
+                            style={{ padding: "4px 10px", fontSize: "12px" }}
+                            onClick={() => choose(o)}
+                          >
+                            Details…
+                          </button>
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -231,12 +274,30 @@ export function ShopFloor({
               <select
                 value={kind}
                 onChange={(e) => {
-                  setKind(e.target.value);
+                  const newKind = e.target.value;
+                  setKind(newKind);
                   setQuantity(
-                    e.target.value === "COMPLETE"
+                    newKind === "COMPLETE"
                       ? op.quantity
                       : op.quantity_completed,
                   );
+                  if (!reason || reason.length < 5) {
+                    setReason(
+                      newKind === "START"
+                        ? "Work started on schedule"
+                        : newKind === "COMPLETE"
+                          ? "Batch completed successfully"
+                          : newKind === "PAUSE"
+                            ? "Shift break / pause"
+                            : newKind === "BREAKDOWN"
+                              ? "Machine breakdown reported"
+                              : newKind === "HOLD"
+                                ? "Quality hold requested"
+                                : newKind === "RESUME"
+                                  ? "Work resumed"
+                                  : "Shift progress update",
+                    );
+                  }
                 }}
               >
                 {actions.map((a) => (
@@ -263,11 +324,12 @@ export function ShopFloor({
                 onChange={(e) => setQuantity(Number(e.target.value))}
               />
             </Field>
-            <Field label="Reason / observation">
+            <Field label="Reason / observation (min 5 characters)">
               <input
                 required
                 minLength={5}
                 maxLength={1000}
+                placeholder="e.g. Work started on schedule"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
               />

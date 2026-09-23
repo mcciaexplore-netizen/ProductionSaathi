@@ -27,9 +27,6 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 npm.cmd --prefix frontend ci
 npm.cmd run build
-.\start.ps1
-```
-
 Open **http://127.0.0.1:8017**. The single server serves both the compiled interface and API. Initial demo creation runs one optimization and can take several seconds.
 
 Local demo sign-in: select **Production manager**, password **promise-demo**. Demo roles are `manager`, `planner`, `sales`, `supervisor`, `purchase`, `maintenance`, `management`, and `admin`. Each role has the same password only in the synthetic demo environment. Manager/admin can activate proposals; planner can edit and propose; sales can check promises; maintenance/purchase can simulate; other roles read the plan.

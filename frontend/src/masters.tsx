@@ -682,7 +682,7 @@ export function MasterData({
                       ))}
                     </select>
                   </Field>
-                  <Field label="Batch size (pcs)">
+                  <Field label="Batch size (pcs) · Transfer lot size">
                     <input
                       type="number"
                       min="1"
@@ -693,6 +693,9 @@ export function MasterData({
                     />
                   </Field>
                 </div>
+                <p className="fine-print" style={{ marginBottom: "12px" }}>
+                  💡 <strong>MSME Tip:</strong> Setting a transfer batch size (e.g. 20–100 pcs) allows the planner to split large jobs across standard 8-hour shifts without marking them infeasible.
+                </p>
                 <Field label="Lead time (days)">
                   <input
                     type="number"
