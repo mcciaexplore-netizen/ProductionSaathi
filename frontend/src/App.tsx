@@ -21,6 +21,7 @@ import {
   X,
   CaretDown,
   Cube,
+  Wrench,
 } from "@phosphor-icons/react";
 import { api, post, fmt } from "./api";
 import type { Data, Row, Run } from "./api";
@@ -29,6 +30,7 @@ import { Dashboard, Bottlenecks, ProductionPlanView } from "./planning";
 import { PromiseChecker, Simulator, Versions } from "./decisions";
 import { FactoryMasters, Reports, Imports, Settings } from "./masters";
 import { ShopFloor } from "./execution";
+import { MaintenanceReminders } from "./maintenance";
 import { McciaLogo } from "./McciaLogo";
 import "./App.css";
 
@@ -40,6 +42,7 @@ const navigation = [
       ["Promise Checker", Target],
       ["Production Plan", CalendarBlank],
       ["Shop Floor", CheckCircle],
+      ["Maintenance Reminders", Wrench],
     ],
   },
   {
@@ -63,6 +66,7 @@ const navigation = [
 
 const descriptions: Record<string, string> = {
   Dashboard: "A clear view of your factory’s delivery commitments.",
+  "Maintenance Reminders": "Machine working hours, production cycle count thresholds, calendar service intervals, and custom maintenance rules.",
   "Production Plan": "Customer orders, shift timeline (Gantt), and operation sequences.",
   "Shop Floor": "Record actual progress and reconcile completed production.",
   "Promise Checker": "A confident answer before you commit.",
@@ -489,6 +493,15 @@ export default function App() {
                   run={run}
                   refresh={refresh}
                   newPlan={newPlan}
+                  notice={setNotice}
+                />
+              )}
+              {page === "Maintenance Reminders" && (
+                <MaintenanceReminders
+                  data={data}
+                  editable={canWrite}
+                  run={run}
+                  refresh={refresh}
                   notice={setNotice}
                 />
               )}

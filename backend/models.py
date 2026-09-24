@@ -84,6 +84,20 @@ class Resource(Model):
     location: str = "Pune · Plant 01"
     unavailable: list[Window] = []
     supplier_id: str | None = None
+    total_working_hours: float = Field(default=0.0, ge=0)
+    working_hours_since_service: float = Field(default=0.0, ge=0)
+    max_working_hours: float = Field(default=200.0, ge=1)
+    total_production_count: int = Field(default=0, ge=0)
+    production_count_since_service: int = Field(default=0, ge=0)
+    max_production_count: int = Field(default=5000, ge=1)
+    last_service_date: str | None = None
+    service_interval_days: int = Field(default=30, ge=1)
+    maintenance_workflow_mode: Literal[
+        "HOURS", "PRODUCTION_COUNT", "CALENDAR", "CUSTOM", "HYBRID"
+    ] = "HYBRID"
+    custom_workflow_rule: str = ""
+    maintenance_notes: str = ""
+
 
 
 class Material(Model):

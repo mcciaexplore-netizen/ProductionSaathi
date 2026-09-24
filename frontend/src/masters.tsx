@@ -622,6 +622,46 @@ export function MasterData({
                     />
                   </Field>
                 </div>
+                <div className="form-grid">
+                  <Field label="Max Working Hours Limit">
+                    <input
+                      type="number"
+                      min="1"
+                      value={edit.max_working_hours || 200}
+                      onChange={(e) =>
+                        setEdit({
+                          ...edit,
+                          max_working_hours: Number(e.target.value),
+                        })
+                      }
+                    />
+                  </Field>
+                  <Field label="Max Production Count Limit">
+                    <input
+                      type="number"
+                      min="1"
+                      value={edit.max_production_count || 5000}
+                      onChange={(e) =>
+                        setEdit({
+                          ...edit,
+                          max_production_count: Number(e.target.value),
+                        })
+                      }
+                    />
+                  </Field>
+                </div>
+                <Field label="Custom User Maintenance Workflow Rule">
+                  <input
+                    value={edit.custom_workflow_rule || ""}
+                    placeholder="e.g. Inspect chuck pressure & clean filters every 100 hrs."
+                    onChange={(e) =>
+                      setEdit({
+                        ...edit,
+                        custom_workflow_rule: e.target.value,
+                      })
+                    }
+                  />
+                </Field>
               </>
             ) : page === "Materials" ? (
               <>

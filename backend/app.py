@@ -10,6 +10,7 @@ from collections import defaultdict, deque
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
+from typing import Literal
 from fastapi import (
     FastAPI,
     Depends,
@@ -384,6 +385,163 @@ def create_app(db_path=None, *, db_schema=None):
                 else []
             ),
         }
+
+    @app.get("/api/maintenance/reminders")
+    def maintenance_reminders(u=Depends(user)):
+        f, rev, active = store.snapshot()
+        now_dt = datetime.now()
+        reminders = []
+        counts = {"OVERDUE": 0, "DUE_SOON": 0, "MAINTENANCE": 0, "HEALTHY": 0}
+
+        for r in f.resources:
+            hours_since = float(getattr(r, "working_hours_since_service", 0.0) or 0.0)
+            max_hours = float(getattr(r, "max_working_hours", 200.0) or 200.0)
+            hours_ratio = min(1.0, hours_since / max_hours) if max_hours > 0 else 0.0
+
+            prod_since = int(getattr(r, "production_count_since_service", 0) or 0)
+            max_prod = int(getattr(r, "max_production_count", 5000) or 5000)
+            prod_ratio = min(1.0, prod_since / max_prod) if max_prod > 0 else 0.0
+
+            last_date_str = getattr(r, "last_service_date", None)
+            days_since = 0
+            if last_date_str:
+                try:
+                    days_since = max(0, (now_dt - datetime.fromisoformat(last_date_str)).days)
+                except Exception:
+                    days_since = 0
+            interval_days = int(getattr(r, "service_interval_days", 30) or 30)
+            calendar_ratio = min(1.0, days_since / interval_days) if interval_days > 0 else 0.0
+
+            health_status = "HEALTHY"
+            if r.status == "MAINTENANCE":
+                health_status = "MAINTENANCE"
+            elif r.status == "BREAKDOWN":
+                health_status = "OVERDUE"
+            elif hours_since >= max_hours or prod_since >= max_prod or (last_date_str and days_since >= interval_days):
+                health_status = "OVERDUE"
+            elif hours_ratio >= 0.85 or prod_ratio >= 0.85 or calendar_ratio >= 0.85:
+                health_status = "DUE_SOON"
+
+            counts[health_status] = counts.get(health_status, 0) + 1
+
+            reminders.append({
+                "resource_id": r.id,
+                "resource_name": r.name,
+                "department": r.department,
+                "resource_type": r.type,
+                "status": r.status,
+                "health_status": health_status,
+                "working_hours_since_service": round(hours_since, 1),
+                "total_working_hours": round(float(getattr(r, "total_working_hours", 0.0) or 0.0), 1),
+                "max_working_hours": max_hours,
+                "hours_ratio": round(hours_ratio * 100, 1),
+                "production_count_since_service": prod_since,
+                "total_production_count": int(getattr(r, "total_production_count", 0) or 0),
+                "max_production_count": max_prod,
+                "prod_ratio": round(prod_ratio * 100, 1),
+                "last_service_date": last_date_str,
+                "days_since_service": days_since,
+                "service_interval_days": interval_days,
+                "calendar_ratio": round(calendar_ratio * 100, 1),
+                "maintenance_workflow_mode": getattr(r, "maintenance_workflow_mode", "HYBRID"),
+                "custom_workflow_rule": getattr(r, "custom_workflow_rule", "") or "",
+                "maintenance_notes": getattr(r, "maintenance_notes", "") or "",
+                "unavailable_windows": [w.model_dump() for w in r.unavailable],
+            })
+
+        return {
+            "reminders": reminders,
+            "counts": counts,
+            "timestamp": now_dt.isoformat(),
+        }
+
+    class MaintenanceLog(Model):
+        resource_id: str
+        notes: str = ""
+
+    @app.post("/api/maintenance/log-service")
+    def log_maintenance_service(body: MaintenanceLog, u=Depends(user)):
+        authorize(u, WRITE | {"maintenance", "supervisor"})
+        f, rev, _ = store.snapshot()
+        idx = next((i for i, r in enumerate(f.resources) if r.id == body.resource_id), None)
+        if idx is None:
+            raise HTTPException(404, f"Resource {body.resource_id} not found")
+        
+        r = f.resources[idx].model_dump()
+        r["working_hours_since_service"] = 0.0
+        r["production_count_since_service"] = 0
+        r["last_service_date"] = datetime.now().isoformat().split("T")[0]
+        if body.notes:
+            r["maintenance_notes"] = body.notes
+        if r["status"] == "MAINTENANCE":
+            r["status"] = "AVAILABLE"
+            
+        f.resources[idx] = type(f.resources[idx]).model_validate(r)
+        store.save_factory(
+            f, rev, u["username"], f"Logged maintenance service for machine {body.resource_id}"
+        )
+        return {"ok": True, "resource_id": body.resource_id, "status": f.resources[idx].status}
+
+    class MaintenanceConfig(Model):
+        resource_id: str
+        max_working_hours: float = Field(default=200.0, ge=1)
+        max_production_count: int = Field(default=5000, ge=1)
+        service_interval_days: int = Field(default=30, ge=1)
+        maintenance_workflow_mode: Literal[
+            "HOURS", "PRODUCTION_COUNT", "CALENDAR", "CUSTOM", "HYBRID"
+        ] = "HYBRID"
+        custom_workflow_rule: str = ""
+        maintenance_notes: str = ""
+
+    @app.post("/api/maintenance/config")
+    def update_maintenance_config(body: MaintenanceConfig, u=Depends(user)):
+        authorize(u, WRITE | {"maintenance"})
+        f, rev, _ = store.snapshot()
+        idx = next((i for i, r in enumerate(f.resources) if r.id == body.resource_id), None)
+        if idx is None:
+            raise HTTPException(404, f"Resource {body.resource_id} not found")
+        
+        r = f.resources[idx].model_dump()
+        r["max_working_hours"] = body.max_working_hours
+        r["max_production_count"] = body.max_production_count
+        r["service_interval_days"] = body.service_interval_days
+        r["maintenance_workflow_mode"] = body.maintenance_workflow_mode
+        r["custom_workflow_rule"] = body.custom_workflow_rule
+        r["maintenance_notes"] = body.maintenance_notes
+        
+        f.resources[idx] = type(f.resources[idx]).model_validate(r)
+        store.save_factory(
+            f, rev, u["username"], f"Updated maintenance workflow rules for machine {body.resource_id}"
+        )
+        return {"ok": True, "resource_id": body.resource_id}
+
+    class MaintenanceDowntime(Model):
+        resource_id: str
+        start: str
+        end: str
+        reason: str = "Preventive Maintenance"
+
+    @app.post("/api/maintenance/schedule-downtime")
+    def schedule_maintenance_downtime(body: MaintenanceDowntime, u=Depends(user)):
+        authorize(u, WRITE | {"maintenance", "supervisor"})
+        f, rev, _ = store.snapshot()
+        idx = next((i for i, r in enumerate(f.resources) if r.id == body.resource_id), None)
+        if idx is None:
+            raise HTTPException(404, f"Resource {body.resource_id} not found")
+        
+        r = f.resources[idx].model_dump()
+        r["unavailable"].append({
+            "start": body.start,
+            "end": body.end,
+            "reason": body.reason,
+        })
+        r["status"] = "MAINTENANCE"
+        f.resources[idx] = type(f.resources[idx]).model_validate(r)
+        store.save_factory(
+            f, rev, u["username"], f"Scheduled maintenance downtime for machine {body.resource_id}"
+        )
+        return {"ok": True, "resource_id": body.resource_id}
+
 
     class FactoryUpdate(Model):
         factory: Factory

@@ -172,6 +172,37 @@ def demo_factory(today=None):
                     calendar_id="ALL" if r == "HT-EXT" else "DAY",
                     capacity=5 if r == "HT-EXT" else 1,
                     supplier_id="SUP-02" if r == "HT-EXT" else None,
+                    status="MAINTENANCE" if r == "VMC-01" else "AVAILABLE",
+                    working_hours_since_service=215.0 if r == "VMC-01" else (188.0 if r == "CNC-01" else (65.0 if r == "VMC-02" else (145.0 if r == "GRD-01" else 40.0))),
+                    total_working_hours=480.0 if r == "VMC-01" else (720.0 if r == "CNC-01" else 250.0),
+                    max_working_hours=200.0,
+                    production_count_since_service=5200 if r == "VMC-01" else (4850 if r == "CNC-02" else (1200 if r == "VMC-02" else 800)),
+                    total_production_count=12000 if r == "VMC-01" else (9500 if r == "CNC-02" else 3000),
+                    max_production_count=5000,
+                    last_service_date=date(-35, 10).split("T")[0] if r == "VMC-01" else (date(-15, 10).split("T")[0]),
+                    service_interval_days=30,
+                    maintenance_workflow_mode="HYBRID",
+                    custom_workflow_rule=(
+                        "Spindle bearing vibration check every 150 hrs. Flush coolant reservoir."
+                        if r == "VMC-01"
+                        else (
+                            "Inspect chuck pressure & coolant concentration weekly. Clean guide ways."
+                            if r == "CNC-01"
+                            else (
+                                "Check tool turret alignment & index pin wear after 4500 parts."
+                                if r == "CNC-02"
+                                else (
+                                    "Calibrate tool length sensor bi-weekly & inspect 4th axis encoder."
+                                    if r == "VMC-02"
+                                    else (
+                                        "Dress grinding wheel every 50 hrs. Check spindle oil level."
+                                        if r == "GRD-01"
+                                        else "Inspect blade tension & hydraulic oil level."
+                                    )
+                                )
+                            )
+                        )
+                    ),
                     unavailable=(
                         [
                             dict(
