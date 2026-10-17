@@ -87,3 +87,41 @@ def test_accounts_locked_in_demo(storage_target):
             ).status_code
             == 403
         )
+
+
+def test_signup_waits_for_admin_approval(production):
+    other = TestClient(production.app, base_url="https://testserver")
+    request = {"username": "new.planner", "password": "n" * 16}
+    assert other.post("/api/signup", json=request).status_code == 201
+    assert other.post("/api/signup", json=request).status_code == 409
+    weak = {"username": "weak.user", "password": "short"}
+    assert other.post("/api/signup", json=weak).status_code == 422
+    # Pending accounts cannot sign in or reach data.
+    r = sign_in(other, "new.planner", "n" * 16)
+    assert r.status_code == 403 and "approve" in r.json()["detail"]
+    assert other.get("/api/factory").status_code == 401
+    # Signing up can never grant a role.
+    assert (
+        other.post(
+            "/api/signup",
+            json={"username": "sneaky", "password": "s" * 16, "role": "admin"},
+        ).status_code
+        == 422
+    )
+
+    sign_in(production, "admin", ADMIN_PASSWORD)
+    listed = {u["username"]: u["role"] for u in production.get("/api/users").json()}
+    assert listed["new.planner"] == "pending"
+    assert (
+        production.put("/api/users/new.planner", json={"role": "planner"}).status_code
+        == 200
+    )
+    assert sign_in(other, "new.planner", "n" * 16).json()["role"] == "planner"
+
+
+def test_signup_disabled_in_demo(storage_target):
+    path, schema = storage_target
+    login_attempts.clear()
+    with TestClient(create_app(path, db_schema=schema)) as client:
+        r = client.post("/api/signup", json={"username": "x.user", "password": "x" * 16})
+        assert r.status_code == 403

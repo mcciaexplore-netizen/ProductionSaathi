@@ -82,8 +82,10 @@ export const post = async (path: string, body?: any): Promise<any> => {
         version_id: recovery ? Number(recovery[1]) : undefined,
       }),
     });
-    for (;;) {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+    // Check straight away: on serverless hosts the job finishes inside the
+    // submitting request, so waiting first only adds a second of delay.
+    for (let delay = 0; ; delay = 1000) {
+      await new Promise((resolve) => setTimeout(resolve, delay));
       const job = await api(`/jobs/${queued.job_id}`);
       if (job.status === "COMPLETED") return job.result;
       if (["FAILED", "INTERRUPTED", "CANCELLED"].includes(job.status))

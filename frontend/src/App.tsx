@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import {
   ArrowRight,
   ArrowsClockwise,
@@ -27,11 +27,34 @@ import {
 import { api, post, fmt } from "./api";
 import type { Data, Row, Run } from "./api";
 import { Badge, Empty, Field, Modal } from "./ui";
-import { Dashboard, Bottlenecks, ProductionPlanView } from "./planning";
-import { PromiseChecker, Simulator, Versions } from "./decisions";
-import { FactoryMasters, Reports, Imports, Settings } from "./masters";
-import { ShopFloor } from "./execution";
-import { MaintenanceReminders } from "./maintenance";
+// Views load as separate chunks so the sign-in page stays small.
+const views = {
+  planning: () => import("./planning"),
+  decisions: () => import("./decisions"),
+  masters: () => import("./masters"),
+  execution: () => import("./execution"),
+  maintenance: () => import("./maintenance"),
+};
+const Dashboard = lazy(() => views.planning().then((m) => ({ default: m.Dashboard })));
+const Bottlenecks = lazy(() => views.planning().then((m) => ({ default: m.Bottlenecks })));
+const ProductionPlanView = lazy(() =>
+  views.planning().then((m) => ({ default: m.ProductionPlanView })),
+);
+const PromiseChecker = lazy(() =>
+  views.decisions().then((m) => ({ default: m.PromiseChecker })),
+);
+const Simulator = lazy(() => views.decisions().then((m) => ({ default: m.Simulator })));
+const Versions = lazy(() => views.decisions().then((m) => ({ default: m.Versions })));
+const FactoryMasters = lazy(() =>
+  views.masters().then((m) => ({ default: m.FactoryMasters })),
+);
+const Reports = lazy(() => views.masters().then((m) => ({ default: m.Reports })));
+const Imports = lazy(() => views.masters().then((m) => ({ default: m.Imports })));
+const Settings = lazy(() => views.masters().then((m) => ({ default: m.Settings })));
+const ShopFloor = lazy(() => views.execution().then((m) => ({ default: m.ShopFloor })));
+const MaintenanceReminders = lazy(() =>
+  views.maintenance().then((m) => ({ default: m.MaintenanceReminders })),
+);
 import { McciaLogo } from "./McciaLogo";
 import { GridBackdrop } from "./motion";
 import "./App.css";
@@ -96,16 +119,22 @@ export default function App() {
   const refresh = async () => setData(await api("/factory"));
 
   useEffect(() => {
-    api("/me")
-      .then(async (s) => {
+    // Ask for the session and the factory together: one round trip, not two.
+    Promise.all([api("/me"), api("/factory").catch(() => null)])
+      .then(([s, factory]) => {
         setSession(s);
         if (!["sales", "planner", "manager", "admin"].includes(s.role))
           setPage("Dashboard");
-        await refresh();
+        setData(factory);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    // Once signed in, fetch every view in the background so navigation is instant.
+    if (session) Object.values(views).forEach((load) => load().catch(() => {}));
+  }, [session]);
 
   useEffect(() => {
     if (!notice) return;
@@ -423,7 +452,14 @@ export default function App() {
               body="Refresh the page to reconnect to the planning service."
             />
           ) : (
-            <>
+            <Suspense
+              fallback={
+                <div className="message working" role="status">
+                  <span className="spinner" />
+                  <span>Loading…</span>
+                </div>
+              }
+            >
               {!!data.execution_pending_orders?.length && (
                 <div className="plan-status" role="status">
                   <Warning size={20} />
@@ -538,7 +574,7 @@ export default function App() {
                   session={session}
                 />
               )}
-            </>
+            </Suspense>
           )}
           <footer className="page-footer">
             <span>
@@ -613,8 +649,35 @@ function Login({
 }) {
   const [username, setUsername] = useState(""),
     [password, setPassword] = useState(""),
+    [confirm, setConfirm] = useState(""),
     [reveal, setReveal] = useState(false),
-    [demo, setDemo] = useState(false);
+    [demo, setDemo] = useState(false),
+    [signingUp, setSigningUp] = useState(false),
+    [signupError, setSignupError] = useState(""),
+    [requested, setRequested] = useState(""),
+    [sending, setSending] = useState(false);
+  const mismatch = signingUp && confirm.length > 0 && confirm !== password;
+
+  const switchMode = (signup: boolean) => {
+    setSigningUp(signup);
+    setSignupError("");
+    setPassword("");
+    setConfirm("");
+  };
+  const requestAccount = async () => {
+    if (mismatch) return;
+    setSending(true);
+    setSignupError("");
+    try {
+      await post("/signup", { username, password });
+      setRequested(username);
+      switchMode(false);
+    } catch (e) {
+      setSignupError((e as Error).message);
+    } finally {
+      setSending(false);
+    }
+  };
 
   useEffect(() => {
     api("/health")
@@ -660,12 +723,26 @@ function Login({
         <div className="brand-logo-wrap">
           <McciaLogo height={32} />
         </div>
-        <h2>Your planning workspace</h2>
-        <p>Sign in to see what your factory can deliver.</p>
+        <h2>{signingUp ? "Create your account" : "Your planning workspace"}</h2>
+        <p>
+          {signingUp
+            ? "An administrator approves new accounts and sets what you can do."
+            : "Sign in to see what your factory can deliver."}
+        </p>
+        {requested && !signingUp && (
+          <div className="message success" role="status">
+            <CheckCircle size={20} />
+            <span>
+              Account <strong>{requested}</strong> requested. You can sign in
+              once an administrator approves it.
+            </span>
+          </div>
+        )}
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            onLogin(username, password);
+            if (signingUp) requestAccount();
+            else onLogin(username, password);
           }}
         >
           <Field label="Username">
@@ -683,7 +760,8 @@ function Login({
             <span className="password-field">
               <input
                 type={reveal ? "text" : "password"}
-                autoComplete="current-password"
+                autoComplete={signingUp ? "new-password" : "current-password"}
+                minLength={signingUp ? 16 : undefined}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -698,16 +776,52 @@ function Login({
               </button>
             </span>
           </Field>
-          {error && (
-            <p role="alert" className="red-text">
-              {error}
+          {signingUp && (
+            <Field label="Confirm password">
+              <input
+                type={reveal ? "text" : "password"}
+                autoComplete="new-password"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                required
+              />
+            </Field>
+          )}
+          {signingUp && (
+            <p className="fine-print">
+              Use at least 16 characters. A short phrase is easiest to remember.
             </p>
           )}
-          <button className="primary full" disabled={!!busy}>
-            {busy || "Open workspace"}
-            <ArrowRight size={18} />
-          </button>
+          {(signingUp ? signupError : error) && (
+            <p role="alert" className="red-text">
+              {signingUp ? signupError : error}
+            </p>
+          )}
+          {mismatch && <p className="red-text">Passwords do not match.</p>}
+          {signingUp ? (
+            <button className="primary full" disabled={sending || mismatch}>
+              {sending ? "Sending request…" : "Request account"}
+              <ArrowRight size={18} />
+            </button>
+          ) : (
+            <button className="primary full" disabled={!!busy}>
+              {busy || "Open workspace"}
+              <ArrowRight size={18} />
+            </button>
+          )}
         </form>
+        {!demo && (
+          <p className="login-switch">
+            {signingUp ? "Already have an account?" : "New to this workspace?"}{" "}
+            <button
+              type="button"
+              className="text-button"
+              onClick={() => switchMode(!signingUp)}
+            >
+              {signingUp ? "Sign in" : "Create an account"}
+            </button>
+          </p>
+        )}
         {demo && (
           <div className="demo-note">
             <span className="badge green">Demo access</span>

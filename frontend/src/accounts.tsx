@@ -48,12 +48,17 @@ export function UserAdmin({
       await load();
       notice(`Account ${draft.username} created. Share the password privately.`);
     });
-  const changeRole = (username: string, role: string) =>
-    run("Updating role", async () => {
+  const changeRole = (username: string, role: string, approving = false) =>
+    run(approving ? "Approving account" : "Updating role", async () => {
       await send("/users/" + encodeURIComponent(username), "PUT", { role });
       await load();
-      notice(`${username} is now ${role}. They will sign in again.`);
+      notice(
+        approving
+          ? `${username} approved as ${role}. They can sign in now.`
+          : `${username} is now ${role}. They will sign in again.`,
+      );
     });
+  const pending = users.filter((u) => u.role === "pending").length;
   const remove = (username: string) => {
     if (!window.confirm(`Remove ${username}? They will be signed out.`)) return;
     run("Removing account", async () => {
@@ -125,7 +130,15 @@ export function UserAdmin({
           </button>
         </form>
       </Panel>
-      <Panel title="Users" sub="Everyone who can sign in to this workspace.">
+      <Panel
+        title="Users"
+        sub={
+          pending
+            ? `${pending} account request${pending > 1 ? "s" : ""} waiting for approval. Choose a role to approve, or remove to decline.`
+            : "Everyone who can sign in to this workspace."
+        }
+        action={pending ? <span className="pill amber">{pending} pending</span> : undefined}
+      >
         <div className="table-scroll">
           <table>
             <thead>
@@ -136,20 +149,34 @@ export function UserAdmin({
               </tr>
             </thead>
             <tbody>
-              {users.map((u) => (
+              {[...users]
+                .sort((a, b) => Number(b.role === "pending") - Number(a.role === "pending"))
+                .map((u) => (
                 <tr key={u.username}>
                   <td>
                     <strong>{u.username}</strong>
                     {u.username === session.username && (
                       <span className="cell-sub">You</span>
                     )}
+                    {u.role === "pending" && (
+                      <span className="cell-sub">
+                        <span className="pill amber">Awaiting approval</span>
+                      </span>
+                    )}
                   </td>
                   <td>
                     <select
                       aria-label={"Role for " + u.username}
                       value={u.role}
-                      onChange={(e) => changeRole(u.username, e.target.value)}
+                      onChange={(e) =>
+                        changeRole(u.username, e.target.value, u.role === "pending")
+                      }
                     >
+                      {u.role === "pending" && (
+                        <option value="pending" disabled>
+                          Choose a role to approve…
+                        </option>
+                      )}
                       {ROLES.map((r) => (
                         <option key={r}>{r}</option>
                       ))}

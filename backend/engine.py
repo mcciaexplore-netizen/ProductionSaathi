@@ -5,12 +5,13 @@ its routing independently, permitting quantity splitting without overlaps.
 """
 
 import math
-import ortools
+from importlib.metadata import version
 from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Protocol
-from ortools.sat.python import cp_model
 from .models import Factory
+
+ORTOOLS_VERSION = version("ortools")
 
 PRIORITY = {"Critical": 8, "High": 4, "Normal": 2, "Low": 1}
 INACTIVE = {"COMPLETED", "DISPATCHED", "CANCELLED"}
@@ -96,6 +97,10 @@ class SolverProvider(Protocol):
 
 class CpSatProvider:
     def solve(self, factory, base, fixed=None, candidate_id=None, freeze=True):
+        # OR-Tools (with numpy/pandas) takes seconds to import; load it only
+        # when a solve actually runs so serverless cold starts stay fast.
+        from ortools.sat.python import cp_model
+
         factory = Factory.model_validate(factory.model_dump())
         base = base.replace(hour=0, minute=0, second=0, microsecond=0)
         h = factory.settings.horizon_days * 1440
@@ -469,7 +474,7 @@ class CpSatProvider:
             base=base.isoformat(),
             horizon_days=factory.settings.horizon_days,
             solver="Google OR-Tools CP-SAT",
-            solver_version=ortools.__version__,
+            solver_version=ORTOOLS_VERSION,
             model_version=MODEL_VERSION,
             solver_parameters={
                 "workers": 1,

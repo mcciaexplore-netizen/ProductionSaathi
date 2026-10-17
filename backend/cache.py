@@ -3,8 +3,8 @@
 import hashlib
 import json
 from datetime import datetime, timezone
-import ortools
-from .engine import MODEL_VERSION
+
+from .engine import MODEL_VERSION, ORTOOLS_VERSION
 
 
 def fingerprint(factory, base, kwargs, revision, active_id):
@@ -14,7 +14,7 @@ def fingerprint(factory, base, kwargs, revision, active_id):
         options=kwargs,
         revision=revision,
         active_id=active_id,
-        solver=ortools.__version__,
+        solver=ORTOOLS_VERSION,
         model=MODEL_VERSION,
     )
     return hashlib.sha256(

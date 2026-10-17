@@ -71,6 +71,8 @@ ROLES = [
     "admin",
 ]
 MIN_PASSWORD = 16
+# Self-registered accounts wait here until an administrator assigns a role.
+PENDING = "pending"
 WRITE = {"planner", "manager", "admin"}
 APPROVE = {"manager", "admin"}
 
@@ -271,8 +273,7 @@ def create_app(db_path=None, *, db_schema=None):
             "database": "postgresql" if store.database.postgres else "sqlite",
         }
 
-    @app.post("/api/login")
-    def login(body: Login, request: Request, response: Response):
+    def throttle(request: Request):
         key = request.client.host if request.client else "unknown"
         attempts = login_attempts[key]
         while attempts and attempts[0] < time.time() - 60:
@@ -280,12 +281,21 @@ def create_app(db_path=None, *, db_schema=None):
         if len(attempts) >= 12:
             raise HTTPException(429, "Too many sign-in attempts. Wait one minute.")
         attempts.append(time.time())
+
+    @app.post("/api/login")
+    def login(body: Login, request: Request, response: Response):
+        throttle(request)
         with store.connect() as db:
             row = db.execute(
                 "SELECT * FROM users WHERE username=?", (body.username,)
             ).fetchone()
             if not row or not password_matches(body.password, row["password"]):
                 raise HTTPException(401, "Incorrect username or password")
+            if row["role"] == PENDING:
+                raise HTTPException(
+                    403,
+                    "Your account is waiting for an administrator to approve it.",
+                )
             token = secrets.token_urlsafe(32)
             digest = hashlib.sha256(token.encode()).hexdigest()
             db.execute("DELETE FROM sessions WHERE expires<?", (time.time(),))
@@ -350,6 +360,33 @@ def create_app(db_path=None, *, db_schema=None):
     class PasswordChange(Model):
         current_password: str = Field(max_length=200)
         new_password: str = Field(min_length=MIN_PASSWORD, max_length=200)
+
+    class SignUp(Model):
+        username: str = Field(
+            min_length=3, max_length=100, pattern=r"^[A-Za-z0-9._@-]+$"
+        )
+        password: str = Field(min_length=MIN_PASSWORD, max_length=200)
+
+    @app.post("/api/signup", status_code=201)
+    def signup(body: SignUp, request: Request):
+        """Anyone may request an account; it cannot sign in until an
+        administrator approves it by assigning a role."""
+        if DEMO:
+            raise HTTPException(
+                403, "The shared demo uses fixed accounts. Sign up on your own workspace."
+            )
+        throttle(request)
+        with store.connect() as db:
+            if db.execute(
+                "SELECT 1 FROM users WHERE username=?", (body.username,)
+            ).fetchone():
+                raise HTTPException(409, "That username is taken")
+            db.execute(
+                "INSERT INTO users VALUES (?,?,?)",
+                (body.username, PENDING, password_hash(body.password)),
+            )
+            store.audit(db, body.username, "Requested account", {})
+        return {"username": body.username, "status": "pending"}
 
     def accounts_admin(u):
         authorize(u, {"admin"})
