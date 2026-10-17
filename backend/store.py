@@ -62,14 +62,14 @@ class Store:
             with self.connect() as c:
                 return self.load(c)
         rows = db.execute("SELECT kind,body FROM entities ORDER BY kind,id").fetchall()
-        if not rows:
+        settings = db.execute("SELECT value FROM meta WHERE key='settings'").fetchone()
+        # A new production factory has settings but no master records yet.
+        if not rows and not settings:
             return None
         data = {t: [] for t in TABLES}
         for r in rows:
             data[r["kind"]].append(json.loads(r["body"]))
-        data["settings"] = json.loads(
-            db.execute("SELECT value FROM meta WHERE key='settings'").fetchone()[0]
-        )
+        data["settings"] = json.loads(settings[0])
         return Factory.model_validate(data)
 
     def write_factory(self, db, factory):

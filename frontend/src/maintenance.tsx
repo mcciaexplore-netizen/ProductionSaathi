@@ -14,6 +14,7 @@ import {
 import { api } from "./api";
 import type { Data, Row, Run } from "./api";
 import { Badge, Field, Modal, Panel } from "./ui";
+import { CountUp } from "./motion";
 
 type Props = {
   data: Data;
@@ -183,55 +184,55 @@ export function MaintenanceReminders({ data, editable, run, refresh, notice }: P
           gap: "16px",
         }}
       >
-        <div className="kpi-card" style={{ padding: "16px", borderRadius: "8px", background: "var(--surface)", border: "1px solid var(--border)" }}>
+        <div className="kpi-card" style={{ padding: "16px", borderRadius: "var(--r-md)", background: "var(--surface)", border: "1px solid var(--border)" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <span style={{ fontSize: "0.85rem", color: "var(--text-muted)", fontWeight: 500 }}>Monitored Machines</span>
             <Gear size={20} style={{ color: "var(--primary)" }} />
           </div>
-          <div style={{ fontSize: "1.8rem", fontWeight: 700, marginTop: "8px" }}>{reminders.length}</div>
+          <div style={{ fontSize: "1.8rem", fontWeight: 700, marginTop: "8px" }}><CountUp value={reminders.length} /></div>
           <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "4px" }}>Total machines in plant</div>
         </div>
 
-        <div className="kpi-card" style={{ padding: "16px", borderRadius: "8px", background: counts.OVERDUE > 0 ? "#fef2f2" : "var(--surface)", border: counts.OVERDUE > 0 ? "1px solid #fecaca" : "1px solid var(--border)" }}>
+        <div className="kpi-card" style={{ padding: "16px", borderRadius: "var(--r-md)", background: counts.OVERDUE > 0 ? "var(--red-tint)" : "var(--surface)", border: counts.OVERDUE > 0 ? "1px solid var(--red-tint-border)" : "1px solid var(--border)" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: "0.85rem", color: counts.OVERDUE > 0 ? "#dc2626" : "var(--text-muted)", fontWeight: 600 }}>Overdue Maintenance</span>
-            <Warning size={20} style={{ color: "#dc2626" }} />
+            <span style={{ fontSize: "0.85rem", color: counts.OVERDUE > 0 ? "var(--red-text)" : "var(--text-muted)", fontWeight: 600 }}>Overdue Maintenance</span>
+            <Warning size={20} style={{ color: "var(--red-text)" }} />
           </div>
-          <div style={{ fontSize: "1.8rem", fontWeight: 700, marginTop: "8px", color: counts.OVERDUE > 0 ? "#dc2626" : "inherit" }}>
-            {counts.OVERDUE}
+          <div style={{ fontSize: "1.8rem", fontWeight: 700, marginTop: "8px", color: counts.OVERDUE > 0 ? "var(--red-text)" : "inherit" }}>
+            <CountUp value={counts.OVERDUE} />
           </div>
-          <div style={{ fontSize: "0.8rem", color: counts.OVERDUE > 0 ? "#991b1b" : "var(--text-muted)", marginTop: "4px" }}>Requires immediate service</div>
+          <div style={{ fontSize: "0.8rem", color: counts.OVERDUE > 0 ? "var(--red-text)" : "var(--text-muted)", marginTop: "4px" }}>Requires immediate service</div>
         </div>
 
-        <div className="kpi-card" style={{ padding: "16px", borderRadius: "8px", background: counts.DUE_SOON > 0 ? "#fffbe6" : "var(--surface)", border: counts.DUE_SOON > 0 ? "1px solid #ffe58f" : "1px solid var(--border)" }}>
+        <div className="kpi-card" style={{ padding: "16px", borderRadius: "var(--r-md)", background: counts.DUE_SOON > 0 ? "var(--amber-tint)" : "var(--surface)", border: counts.DUE_SOON > 0 ? "1px solid var(--amber-tint-border)" : "1px solid var(--border)" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: "0.85rem", color: counts.DUE_SOON > 0 ? "#d97706" : "var(--text-muted)", fontWeight: 600 }}>Service Due Soon</span>
-            <Clock size={20} style={{ color: "#d97706" }} />
+            <span style={{ fontSize: "0.85rem", color: counts.DUE_SOON > 0 ? "var(--amber)" : "var(--text-muted)", fontWeight: 600 }}>Service Due Soon</span>
+            <Clock size={20} style={{ color: "var(--amber)" }} />
           </div>
-          <div style={{ fontSize: "1.8rem", fontWeight: 700, marginTop: "8px", color: counts.DUE_SOON > 0 ? "#d97706" : "inherit" }}>
-            {counts.DUE_SOON}
+          <div style={{ fontSize: "1.8rem", fontWeight: 700, marginTop: "8px", color: counts.DUE_SOON > 0 ? "var(--amber)" : "inherit" }}>
+            <CountUp value={counts.DUE_SOON} />
           </div>
-          <div style={{ fontSize: "0.8rem", color: counts.DUE_SOON > 0 ? "#b45309" : "var(--text-muted)", marginTop: "4px" }}>&gt;85% threshold reached</div>
+          <div style={{ fontSize: "0.8rem", color: counts.DUE_SOON > 0 ? "var(--amber-text)" : "var(--text-muted)", marginTop: "4px" }}>&gt;85% threshold reached</div>
         </div>
 
-        <div className="kpi-card" style={{ padding: "16px", borderRadius: "8px", background: "var(--surface)", border: "1px solid var(--border)" }}>
+        <div className="kpi-card" style={{ padding: "16px", borderRadius: "var(--r-md)", background: "var(--surface)", border: "1px solid var(--border)" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <span style={{ fontSize: "0.85rem", color: "var(--text-muted)", fontWeight: 500 }}>In Maintenance</span>
-            <Wrench size={20} style={{ color: "#2563eb" }} />
+            <Wrench size={20} style={{ color: "var(--blue)" }} />
           </div>
-          <div style={{ fontSize: "1.8rem", fontWeight: 700, marginTop: "8px", color: "#2563eb" }}>
-            {counts.MAINTENANCE}
+          <div style={{ fontSize: "1.8rem", fontWeight: 700, marginTop: "8px", color: "var(--blue)" }}>
+            <CountUp value={counts.MAINTENANCE} />
           </div>
           <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "4px" }}>Currently undergoing service</div>
         </div>
 
-        <div className="kpi-card" style={{ padding: "16px", borderRadius: "8px", background: "var(--surface)", border: "1px solid var(--border)" }}>
+        <div className="kpi-card" style={{ padding: "16px", borderRadius: "var(--r-md)", background: "var(--surface)", border: "1px solid var(--border)" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <span style={{ fontSize: "0.85rem", color: "var(--text-muted)", fontWeight: 500 }}>Healthy Machines</span>
-            <CheckCircle size={20} style={{ color: "#16a34a" }} />
+            <CheckCircle size={20} style={{ color: "var(--green-text)" }} />
           </div>
-          <div style={{ fontSize: "1.8rem", fontWeight: 700, marginTop: "8px", color: "#16a34a" }}>
-            {counts.HEALTHY}
+          <div style={{ fontSize: "1.8rem", fontWeight: 700, marginTop: "8px", color: "var(--green-text)" }}>
+            <CountUp value={counts.HEALTHY} />
           </div>
           <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "4px" }}>Operating normally</div>
         </div>
@@ -301,26 +302,26 @@ export function MaintenanceReminders({ data, editable, run, refresh, notice }: P
           ) : (
             filteredReminders.map((item) => {
               const hoursColor =
-                item.hours_ratio >= 100 ? "#dc2626" : item.hours_ratio >= 85 ? "#d97706" : "#16a34a";
+                item.hours_ratio >= 100 ? "var(--red)" : item.hours_ratio >= 85 ? "var(--amber)" : "var(--green)";
               const prodColor =
-                item.prod_ratio >= 100 ? "#dc2626" : item.prod_ratio >= 85 ? "#d97706" : "#16a34a";
+                item.prod_ratio >= 100 ? "var(--red)" : item.prod_ratio >= 85 ? "var(--amber)" : "var(--green)";
               const calColor =
-                item.calendar_ratio >= 100 ? "#dc2626" : item.calendar_ratio >= 85 ? "#d97706" : "#16a34a";
+                item.calendar_ratio >= 100 ? "var(--red)" : item.calendar_ratio >= 85 ? "var(--amber)" : "var(--green)";
 
               return (
                 <div
                   key={item.resource_id}
                   style={{
                     padding: "18px",
-                    borderRadius: "10px",
+                    borderRadius: "var(--r-lg)",
                     background: "var(--surface)",
                     border:
                       item.health_status === "OVERDUE"
-                        ? "1px solid #fecaca"
+                        ? "1px solid var(--red-tint-border)"
                         : item.health_status === "DUE_SOON"
-                        ? "1px solid #ffe58f"
+                        ? "1px solid var(--amber-tint-border)"
                         : item.health_status === "MAINTENANCE"
-                        ? "1px solid #bfdbfe"
+                        ? "1px solid var(--blue-tint-border)"
                         : "1px solid var(--border)",
                     display: "flex",
                     flexDirection: "column",
@@ -332,7 +333,7 @@ export function MaintenanceReminders({ data, editable, run, refresh, notice }: P
                     <div>
                       <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                         <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 600 }}>{item.resource_name}</h3>
-                        <span style={{ fontSize: "0.85rem", background: "var(--bg-subtle)", padding: "2px 8px", borderRadius: "4px", color: "var(--text-muted)" }}>
+                        <span style={{ fontSize: "0.85rem", background: "var(--bg-subtle)", padding: "2px 8px", borderRadius: "var(--r-xs)", color: "var(--text-muted)" }}>
                           {item.resource_id}
                         </span>
                         <span style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
@@ -370,7 +371,7 @@ export function MaintenanceReminders({ data, editable, run, refresh, notice }: P
                       gap: "16px",
                       background: "var(--bg-subtle)",
                       padding: "14px",
-                      borderRadius: "8px",
+                      borderRadius: "var(--r-md)",
                     }}
                   >
                     {/* Working Hours Meter */}
@@ -383,7 +384,7 @@ export function MaintenanceReminders({ data, editable, run, refresh, notice }: P
                           <strong>{item.working_hours_since_service}</strong> / {item.max_working_hours} h
                         </span>
                       </div>
-                      <div style={{ height: "8px", width: "100%", background: "#e5e7eb", borderRadius: "4px", overflow: "hidden" }}>
+                      <div style={{ height: "8px", width: "100%", background: "var(--neutral-track)", borderRadius: "var(--r-pill)", overflow: "hidden" }}>
                         <div
                           style={{
                             height: "100%",
@@ -408,7 +409,7 @@ export function MaintenanceReminders({ data, editable, run, refresh, notice }: P
                           <strong>{item.production_count_since_service.toLocaleString()}</strong> / {item.max_production_count.toLocaleString()} pcs
                         </span>
                       </div>
-                      <div style={{ height: "8px", width: "100%", background: "#e5e7eb", borderRadius: "4px", overflow: "hidden" }}>
+                      <div style={{ height: "8px", width: "100%", background: "var(--neutral-track)", borderRadius: "var(--r-pill)", overflow: "hidden" }}>
                         <div
                           style={{
                             height: "100%",
@@ -433,7 +434,7 @@ export function MaintenanceReminders({ data, editable, run, refresh, notice }: P
                           <strong>{item.days_since_service}</strong> / {item.service_interval_days} days
                         </span>
                       </div>
-                      <div style={{ height: "8px", width: "100%", background: "#e5e7eb", borderRadius: "4px", overflow: "hidden" }}>
+                      <div style={{ height: "8px", width: "100%", background: "var(--neutral-track)", borderRadius: "var(--r-pill)", overflow: "hidden" }}>
                         <div
                           style={{
                             height: "100%",
@@ -451,7 +452,7 @@ export function MaintenanceReminders({ data, editable, run, refresh, notice }: P
 
                   {/* User Decided Custom Workflow Rule */}
                   {item.custom_workflow_rule && (
-                    <div style={{ fontSize: "0.85rem", background: "#f8fafc", padding: "10px 14px", borderRadius: "6px", borderLeft: "3px solid var(--primary)", color: "var(--text)" }}>
+                    <div style={{ fontSize: "0.85rem", background: "var(--blue-tint)", padding: "10px 14px", borderRadius: "var(--r-sm)", borderLeft: "3px solid var(--primary)", color: "var(--text)" }}>
                       <strong>Custom Maintenance Workflow Rule:</strong> {item.custom_workflow_rule}
                     </div>
                   )}
@@ -493,7 +494,7 @@ export function MaintenanceReminders({ data, editable, run, refresh, notice }: P
                 value={logNotes}
                 onChange={(e) => setLogNotes(e.target.value)}
                 placeholder="Details of oil change, alignment check, filter replacement..."
-                style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid var(--border)" }}
+                style={{ width: "100%", padding: "0.7rem 0.9rem", borderRadius: "var(--r-md)", border: "1px solid var(--border)" }}
               />
             </Field>
 
@@ -567,7 +568,7 @@ export function MaintenanceReminders({ data, editable, run, refresh, notice }: P
                 value={configForm.custom_workflow_rule}
                 onChange={(e) => setConfigForm({ ...configForm, custom_workflow_rule: e.target.value })}
                 placeholder="e.g. Inspect chuck pressure & coolant concentration weekly. Clean spindle taper every 100 hrs."
-                style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid var(--border)" }}
+                style={{ width: "100%", padding: "0.7rem 0.9rem", borderRadius: "var(--r-md)", border: "1px solid var(--border)" }}
               />
             </Field>
 

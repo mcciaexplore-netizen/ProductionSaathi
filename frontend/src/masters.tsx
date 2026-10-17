@@ -20,6 +20,7 @@ import {
 import { api, post, fmt, money, futureDate } from "./api";
 import type { Data, Row, Run } from "./api";
 import { Badge, Field, Modal, OrderFields, Panel } from "./ui";
+import { MyAccount, UserAdmin } from "./accounts";
 type EditorProps = {
   data: Data;
   editable: boolean;
@@ -1168,6 +1169,11 @@ export function Settings({
           ...(["manager", "admin", "management"].includes(session.role)
             ? ["Audit trail"]
             : []),
+          ...(session.demo
+            ? []
+            : session.role === "admin"
+              ? ["Users", "My account"]
+              : ["My account"]),
         ].map((t) => (
           <button
             className={tab === t ? "active" : ""}
@@ -1281,6 +1287,10 @@ export function Settings({
             </button>
           </div>
         </Panel>
+      ) : tab === "Users" ? (
+        <UserAdmin session={session} run={run} notice={notice} />
+      ) : tab === "My account" ? (
+        <MyAccount session={session} run={run} notice={notice} />
       ) : tab === "Audit trail" ? (
         <Panel
           title="Audit trail"

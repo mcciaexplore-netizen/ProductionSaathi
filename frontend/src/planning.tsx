@@ -16,6 +16,7 @@ import { fmt } from "./api";
 import type { Data, Row, Run } from "./api";
 import { Badge, Empty, OrderTable, Panel } from "./ui";
 import { Orders } from "./masters";
+import { CountUp } from "./motion";
 export function Dashboard({
   data,
   go,
@@ -96,7 +97,9 @@ export function Dashboard({
               <span>{m.label}</span>
               <m.icon size={21} />
             </div>
-            <strong>{m.value}</strong>
+            <strong>
+              <CountUp value={m.value} />
+            </strong>
             <span className={"metric-foot " + m.color}>
               {i === 1 ? (
                 <ShieldCheck size={14} />
@@ -283,7 +286,7 @@ export function ShiftDispatchBoard({
   return (
     <div style={{ display: "grid", gap: "18px" }}>
       <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
-        <span style={{ fontWeight: 600, fontSize: "13px", color: "#475569" }}>Filter by Machine:</span>
+        <span style={{ fontWeight: 600, fontSize: "13px", color: "var(--text-muted)" }}>Filter by Machine:</span>
         <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
           <button
             className={selectedMachine === "All" ? "primary" : "secondary"}
@@ -309,37 +312,19 @@ export function ShiftDispatchBoard({
         {machinesToDisplay.map((r: Row) => {
           const machineOps = operations.filter((o: Row) => o.resource_id === r.id);
           return (
-            <div
-              key={r.id}
-              style={{
-                background: "#ffffff",
-                border: "1px solid #e2e8f0",
-                borderRadius: "10px",
-                padding: "16px",
-                boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-              }}
-            >
+            <div key={r.id} className="dispatch-card">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
                 <div>
-                  <strong style={{ fontSize: "15px", color: "#0a2540" }}>{r.name || r.id}</strong>
-                  <span style={{ display: "block", fontSize: "11px", color: "#64748b" }}>{r.id} · {r.department || "Machine Line"}</span>
+                  <strong style={{ fontSize: "15px", color: "var(--text)" }}>{r.name || r.id}</strong>
+                  <span style={{ display: "block", fontSize: "11px", color: "var(--text-subtle)" }}>{r.id} · {r.department || "Machine Line"}</span>
                 </div>
-                <span
-                  style={{
-                    background: machineOps.length > 0 ? "#e0f2fe" : "#f1f5f9",
-                    color: machineOps.length > 0 ? "#0369a1" : "#64748b",
-                    padding: "2px 8px",
-                    borderRadius: "12px",
-                    fontSize: "11px",
-                    fontWeight: 600,
-                  }}
-                >
+                <span className={"pill " + (machineOps.length > 0 ? "" : "neutral")}>
                   {machineOps.length} Jobs Scheduled
                 </span>
               </div>
 
               {machineOps.length === 0 ? (
-                <div style={{ padding: "16px", textAlign: "center", background: "#f8fafc", borderRadius: "6px", color: "#94a3b8", fontSize: "12px" }}>
+                <div style={{ padding: "16px", textAlign: "center", background: "var(--bg-alt)", borderRadius: "var(--r-sm)", color: "var(--text-subtle)", fontSize: "12px" }}>
                   No jobs queued for this machine
                 </div>
               ) : (
@@ -350,38 +335,20 @@ export function ShiftDispatchBoard({
                       <div
                         key={op.id}
                         onClick={() => onSelect(op)}
-                        style={{
-                          padding: "10px 12px",
-                          borderRadius: "6px",
-                          background: isLate ? "#fef2f2" : "#f8fafc",
-                          border: "1px solid " + (isLate ? "#fecaca" : "#e2e8f0"),
-                          cursor: "pointer",
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                        }}
+                        className={"dispatch-op " + (isLate ? "late" : "")}
                       >
                         <div>
                           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                            <strong style={{ fontSize: "13px", color: isLate ? "#991b1b" : "#0f172a" }}>
+                            <strong style={{ fontSize: "13px", color: isLate ? "var(--red-text)" : "var(--text)" }}>
                               {op.order_id}
                             </strong>
-                            <span style={{ fontSize: "11px", color: "#64748b" }}>· {op.operation}</span>
+                            <span style={{ fontSize: "11px", color: "var(--text-subtle)" }}>· {op.operation}</span>
                           </div>
-                          <span style={{ fontSize: "11px", color: "#64748b" }}>
+                          <span style={{ fontSize: "11px", color: "var(--text-subtle)" }}>
                             Batch: <strong>{op.quantity} pcs</strong> · Start: {fmt(op.start, true)}
                           </span>
                         </div>
-                        <span
-                          style={{
-                            fontSize: "10px",
-                            padding: "2px 6px",
-                            borderRadius: "4px",
-                            background: isLate ? "#dc2626" : "#229e45",
-                            color: "#ffffff",
-                            fontWeight: 600,
-                          }}
-                        >
+                        <span className={"pill " + (isLate ? "red" : "green")}>
                           {isLate ? "LATE" : "ON TIME"}
                         </span>
                       </div>
@@ -765,36 +732,38 @@ export function Bottlenecks({
 
   return (
     <>
-      <div className="metric-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)", marginBottom: "22px" }}>
-        <div className="metric" style={{ borderLeft: "4px solid " + (critical.length > 0 ? "#dc2626" : "#229e45") }}>
+      <div className="metric-grid three">
+        <div className={"metric " + (critical.length > 0 ? "tone-red" : "tone-green")}>
           <div className="metric-top">
             <span>Overloaded Machines</span>
-            <Warning size={18} color={critical.length > 0 ? "#dc2626" : "#229e45"} />
+            <Warning size={18} />
           </div>
-          <strong style={{ color: critical.length > 0 ? "#dc2626" : "#229e45" }}>
-            {critical.length}
+          <strong>
+            <CountUp value={critical.length} />
           </strong>
           <div className="metric-foot">
             {critical.length > 0 ? "Running above 85% capacity" : "All machines running smoothly"}
           </div>
         </div>
 
-        <div className="metric" style={{ borderLeft: "4px solid #229e45" }}>
+        <div className="metric tone-green">
           <div className="metric-top">
             <span>Normal Running Machines</span>
-            <CheckCircle size={18} color="#229e45" />
+            <CheckCircle size={18} />
           </div>
-          <strong style={{ color: "#229e45" }}>{normal.length}</strong>
+          <strong>
+            <CountUp value={normal.length} />
+          </strong>
           <div className="metric-foot">Healthy capacity available</div>
         </div>
 
-        <div className="metric" style={{ borderLeft: "4px solid " + (p?.orders?.filter((o: Row) => o.status !== "ON TIME")?.length ? "#ea580c" : "#229e45") }}>
+        <div className={"metric " + (p?.orders?.filter((o: Row) => o.status !== "ON TIME")?.length ? "tone-amber" : "tone-green")}>
           <div className="metric-top">
             <span>Orders at Risk</span>
-            <TrendUp size={18} color={p?.orders?.filter((o: Row) => o.status !== "ON TIME")?.length ? "#ea580c" : "#229e45"} />
+            <TrendUp size={18} />
           </div>
-          <strong style={{ color: p?.orders?.filter((o: Row) => o.status !== "ON TIME")?.length ? "#ea580c" : "#229e45" }}>
-            {p?.orders?.filter((o: Row) => o.status !== "ON TIME")?.length || 0}
+          <strong>
+            <CountUp value={p?.orders?.filter((o: Row) => o.status !== "ON TIME")?.length || 0} />
           </strong>
           <div className="metric-foot">Delivery dates needing review</div>
         </div>
@@ -805,42 +774,20 @@ export function Bottlenecks({
           title="⚠️ Machines with Work Overload"
           sub="These machines are creating production delays. Click 'Solve with What-If' to test overtime or shifts."
         >
-          <div style={{ display: "grid", gap: "12px" }}>
+          <div className="overload-list">
             {critical.map((r: Row) => (
-              <div
-                key={r.resource_id}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  padding: "16px",
-                  background: "#fff7ed",
-                  borderRadius: "8px",
-                  border: "1px solid #fed7aa",
-                  flexWrap: "wrap",
-                  gap: "12px",
-                }}
-              >
+              <div key={r.resource_id} className="overload-card">
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                     <strong style={{ fontSize: "16px" }}>{r.name || r.resource_id} ({r.resource_id})</strong>
-                    <span
-                      style={{
-                        background: "#ea580c",
-                        color: "#fff",
-                        padding: "2px 8px",
-                        borderRadius: "12px",
-                        fontSize: "12px",
-                        fontWeight: 600,
-                      }}
-                    >
+                    <span className="pill amber">
                       {r.utilization}% Busy
                     </span>
                   </div>
-                  <p style={{ margin: "6px 0 0", color: "#7c2d12", fontSize: "13px" }}>
+                  <p style={{ margin: "6px 0 0", color: "var(--text-muted)", fontSize: "13px" }}>
                     <strong>Load:</strong> {r.load_hours} hrs of work scheduled (Capacity: {r.capacity_hours} hrs)
                   </p>
-                  <p style={{ margin: "4px 0 0", color: "#9a3412", fontSize: "13px" }}>
+                  <p style={{ margin: "4px 0 0", color: "var(--amber-text)", fontSize: "13px" }}>
                     👉 <strong>Suggested Fix:</strong> {r.action || "Add 2 hours overtime or shift unstarted batch to backup machine"}
                   </p>
                 </div>
@@ -882,17 +829,7 @@ export function Bottlenecks({
                     <span className="cell-sub">{r.resource_id}</span>
                   </td>
                   <td>
-                    <span
-                      style={{
-                        display: "inline-block",
-                        padding: "3px 8px",
-                        borderRadius: "12px",
-                        fontSize: "12px",
-                        fontWeight: 600,
-                        background: r.utilization >= 85 ? "#fee2e2" : "#dcfce7",
-                        color: r.utilization >= 85 ? "#991b1b" : "#166534",
-                      }}
-                    >
+                    <span className={"pill " + (r.utilization >= 85 ? "red" : "green")}>
                       {r.utilization >= 85 ? `⚠️ Overloaded (${r.utilization}%)` : `✓ Normal (${r.utilization}%)`}
                     </span>
                   </td>

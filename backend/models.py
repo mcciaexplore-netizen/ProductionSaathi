@@ -241,7 +241,7 @@ class Order(Model):
 
 
 class Settings(Model):
-    plant_name: str = "Pragati Precision Works"
+    plant_name: str = ""
     timezone: str = "Asia/Kolkata"
     planning_start: datetime | None = None
     planning_not_before: datetime | None = None

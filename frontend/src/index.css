@@ -1,40 +1,10 @@
-:root {
-  font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, "Roboto", "Helvetica Neue", Arial, sans-serif;
-  color: #1e293b;
-  background: #f8fafc;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  font-size: 14px;
+/* Google Fonts bundled locally: the server CSP allows only same-origin assets. */
+@import "@fontsource-variable/bricolage-grotesque";
+@import "@fontsource-variable/outfit";
+@import "./theme.css";
 
-  /* MCCIA Brand Design Tokens */
-  --mccia-blue: #0b62ac;
-  --mccia-blue-hover: #084e8d;
-  --mccia-blue-dark: #0a2540;
-  --mccia-blue-surface: #0f2d4d;
-  --mccia-blue-light: #ebf3fc;
-  --mccia-blue-border: #c7def3;
-  --mccia-green: #229e45;
-  --mccia-green-hover: #1a8237;
-  --mccia-green-light: #eaf7ee;
-  --mccia-green-border: #c1eccf;
-  --mccia-green-dark: #11612a;
-
-  --text-main: #1e293b;
-  --text-muted: #64748b;
-  --text-light: #94a3b8;
-  --border-color: #e2e8f0;
-  --bg-page: #f8fafc;
-  --bg-card: #ffffff;
-}
 * {
   box-sizing: border-box;
-}
-body {
-  margin: 0;
-  min-width: 360px;
-  background-color: var(--bg-page);
-  color: var(--text-main);
 }
 button,
 input,
@@ -55,6 +25,9 @@ a {
 }
 button {
   cursor: pointer;
+  border: 0;
+  background: none;
+  color: inherit;
 }
 button:disabled {
   cursor: not-allowed;
@@ -69,37 +42,44 @@ a:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: 3px solid var(--mccia-blue);
+  outline: 2px solid var(--blue);
   outline-offset: 2px;
-}
-button {
-  border: 0;
-  background: none;
-  color: inherit;
 }
 input,
 select,
 textarea {
-  border: 1px solid var(--border-color);
-  background: #ffffff;
-  color: var(--text-main);
-  border-radius: 7px;
-  padding: 11px 12px;
+  border: 1px solid var(--border-solid);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: var(--r-md);
+  padding: 0.7rem 0.9rem;
   max-width: 100%;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    border-color var(--t-fast),
+    box-shadow var(--t-fast);
+}
+input:hover,
+select:hover,
+textarea:hover {
+  border-color: var(--border-hover);
 }
 input:focus,
 select:focus,
 textarea:focus {
-  border-color: var(--mccia-blue);
-  box-shadow: 0 0 0 3px rgba(11, 98, 172, 0.12);
+  outline: none;
+  border-color: var(--blue);
+  box-shadow: var(--ring);
+}
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--blue);
 }
 textarea {
   resize: vertical;
   min-height: 88px;
 }
 p {
-  line-height: 1.6;
+  line-height: 1.7;
 }
 h1,
 h2,
@@ -108,34 +88,17 @@ p {
   margin-top: 0;
 }
 h2 {
-  font-size: 17px;
-  letter-spacing: -0.3px;
-  font-weight: 650;
-  color: var(--text-main);
+  font-size: 1.2rem;
 }
 h3 {
-  font-size: 16px;
-  color: var(--text-main);
+  font-size: 1.05rem;
 }
 small {
-  font-size: 12px;
+  font-size: 0.8rem;
+}
+code {
+  font-family: var(--font-mono);
 }
 svg {
   flex-shrink: 0;
-}
-::selection {
-  background: #cbe3f7;
-  color: #0a2540;
-}
-button:hover:not(:disabled) {
-  filter: brightness(0.97);
-}
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation: none !important;
-    transition: none !important;
-    scroll-behavior: auto !important;
-  }
 }

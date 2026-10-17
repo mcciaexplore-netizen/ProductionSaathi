@@ -1,0 +1,189 @@
+/* ==========================================================================
+   MCCIA APPLIED AI STUDIO — THEME TOKENS
+   Every colour, radius, shadow, font and timing used by the interface lives
+   here. Component styles (App.css) and inline styles reference these only.
+   ========================================================================== */
+
+:root {
+  /* Brand */
+  --blue: #003f8a;
+  --blue-2: #0056b3;
+  --green: #10b981;
+  --green-text: #059669;
+  --red: #ef4444;
+  --red-text: #dc2626; /* darker red for small text on light tints (contrast) */
+  --purple: #8b5cf6;
+  /* Planning status "at risk" has no brand equivalent; kept as a semantic tone */
+  --amber: #d97706;
+  --amber-text: #b45309;
+
+  /* Text */
+  --text: #0f172a;
+  --text-muted: #475569;
+  --text-subtle: #64748b;
+  --text-on-dark: #f8fafc;
+  --text-on-dark-muted: rgba(248, 250, 252, 0.62);
+
+  /* Surfaces */
+  --bg: #ffffff;
+  --bg-page: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  --bg-alt: #f8fafc;
+  --surface: #ffffff;
+  --card: rgba(255, 255, 255, 0.7);
+  --card-hover: rgba(255, 255, 255, 0.95);
+  --ghost: rgba(255, 255, 255, 0.6);
+  --nav-bg: rgba(255, 255, 255, 0.97);
+  --dark: #060913;
+  --overlay: rgba(15, 23, 42, 0.4);
+
+  /* Borders */
+  --border: rgba(226, 232, 240, 0.85);
+  --border-solid: #e2e8f0;
+  --border-hover: rgba(0, 63, 138, 0.25);
+  --border-open: rgba(0, 63, 138, 0.3);
+
+  /* Tints (badges, icon tiles, alerts) */
+  --blue-tint: rgba(0, 63, 138, 0.05);
+  --blue-tint-strong: rgba(0, 63, 138, 0.08);
+  --blue-tint-border: rgba(0, 63, 138, 0.13);
+  --blue-row-hover: rgba(0, 63, 138, 0.02);
+  --green-tint: rgba(16, 185, 129, 0.07);
+  --green-tint-strong: rgba(16, 185, 129, 0.16);
+  --green-tint-border: rgba(16, 185, 129, 0.14);
+  --red-tint: rgba(239, 68, 68, 0.06);
+  --red-tint-strong: rgba(239, 68, 68, 0.14);
+  --red-tint-border: rgba(239, 68, 68, 0.2);
+  --amber-tint: rgba(217, 119, 6, 0.07);
+  --amber-tint-strong: rgba(217, 119, 6, 0.16);
+  --amber-tint-border: rgba(217, 119, 6, 0.22);
+  --neutral-tint: rgba(100, 116, 139, 0.08);
+  --neutral-track: rgba(100, 116, 139, 0.12);
+
+  /* Gradients */
+  --gradient-primary: linear-gradient(135deg, #003f8a 0%, #0056b3 100%);
+  --gradient-green: linear-gradient(135deg, #059669 0%, #10b981 100%);
+  --gradient-red: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+
+  /* Radius */
+  --r-xs: 6px;
+  --r-sm: 8px;
+  --r-btn: 10px;
+  --r-md: 12px;
+  --r-lg: 20px;
+  --r-pill: 99px;
+
+  /* Shadows — soft and blue tinted */
+  --shadow-card: 0 15px 40px -10px rgba(0, 63, 138, 0.04);
+  --shadow-card-hover: 0 20px 40px rgba(0, 63, 138, 0.08);
+  --shadow-btn: 0 4px 15px rgba(0, 63, 138, 0.15);
+  --shadow-btn-hover: 0 8px 25px rgba(0, 63, 138, 0.25);
+  --shadow-btn-red: 0 4px 15px rgba(239, 68, 68, 0.15);
+  --shadow-btn-red-hover: 0 8px 25px rgba(239, 68, 68, 0.25);
+  --shadow-modal: 0 30px 60px -12px rgba(0, 63, 138, 0.18);
+  --ring: 0 0 0 3px rgba(0, 63, 138, 0.1);
+  --grid-stroke: rgba(0, 63, 138, 0.04);
+  --grid-fill: rgba(0, 63, 138, 0.06);
+
+  /* Typography */
+  --font-heading: "Bricolage Grotesque Variable", "Bricolage Grotesque", "Outfit Variable", Inter, system-ui, sans-serif;
+  --font-body: "Outfit Variable", "Outfit", Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: Consolas, Monaco, "Cascadia Mono", monospace;
+  --font-sans: var(--font-body);
+  --fs-page-title: clamp(2rem, 5vw, 4.2rem);
+  --fs-section-title: clamp(1.9rem, 3.5vw, 2.5rem);
+  --fs-stat: clamp(2.2rem, 3vw, 2.8rem);
+  --fs-label: 0.7rem;
+  --tracking-label: 0.1em;
+
+  /* Motion */
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --t: 0.3s var(--ease);
+  --t-fast: 0.2s var(--ease);
+
+  /* Layout */
+  --content-max: 1140px;
+  --gutter: clamp(1rem, 3vw, 2.5rem);
+
+  /* Aliases kept for existing inline styles */
+  --primary: var(--blue);
+  --bg-subtle: var(--bg-alt);
+}
+
+/* ---------- Base ---------- */
+html {
+  font-family: var(--font-body);
+  font-size: 15px;
+  color: var(--text);
+  background: var(--bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: var(--bg-page);
+  background-attachment: fixed;
+  color: var(--text);
+  line-height: 1.65;
+}
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-heading);
+  color: var(--text);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  font-weight: 700;
+}
+h1 {
+  letter-spacing: -0.03em;
+  font-weight: 800;
+}
+::selection {
+  background: rgba(0, 63, 138, 0.14);
+  color: var(--blue);
+}
+
+/* ---------- Entry motion ---------- */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Reduced motion: no animation or transition anywhere */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}

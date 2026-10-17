@@ -142,6 +142,7 @@ def demo_factory(today=None):
     ]
     return Factory.model_validate(
         dict(
+            settings=dict(plant_name="Pragati Precision Works"),
             customers=customers,
             routings=routings,
             calendars=[

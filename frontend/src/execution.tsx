@@ -190,7 +190,7 @@ export function ShopFloor({
                               style={{
                                 padding: "4px 10px",
                                 fontSize: "12px",
-                                background: "#15803d",
+                                background: "var(--gradient-green)",
                               }}
                               onClick={() => {
                                 setEventError("");

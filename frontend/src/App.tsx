@@ -19,7 +19,8 @@ import {
   Target,
   Warning,
   X,
-  CaretDown,
+  Eye,
+  EyeSlash,
   Cube,
   Wrench,
 } from "@phosphor-icons/react";
@@ -32,6 +33,7 @@ import { FactoryMasters, Reports, Imports, Settings } from "./masters";
 import { ShopFloor } from "./execution";
 import { MaintenanceReminders } from "./maintenance";
 import { McciaLogo } from "./McciaLogo";
+import { GridBackdrop } from "./motion";
 import "./App.css";
 
 const navigation = [
@@ -216,7 +218,9 @@ export default function App() {
           <div>
             <strong>{f?.settings.plant_name || "Factory workspace"}</strong>
             <span>
-              Pune · Plant 01 <CaretDown size={10} />
+              {f?.settings.plant_name
+                ? f.settings.industry_pack || "Manufacturing"
+                : "Name your plant in Settings"}
             </span>
           </div>
         </div>
@@ -255,16 +259,13 @@ export default function App() {
           </div>
           <div className="user-block">
             <span className="avatar">
-              {session.role.slice(0, 2).toUpperCase()}
+              {session.username.slice(0, 2).toUpperCase()}
             </span>
             <div>
-              <strong>
-                {session.role === "manager"
-                  ? "Production manager"
-                  : session.role}
-              </strong>
+              <strong>{session.username}</strong>
               <span>
-                {session.demo ? "Demo workspace" : "Factory workspace"}
+                {session.role}
+                {session.demo ? " · demo" : ""}
               </span>
             </div>
             <button
@@ -311,7 +312,7 @@ export default function App() {
               {plan?.orders.some((o: Row) => o.status !== "ON TIME") && <i />}
             </button>
             <span className="avatar small">
-              {session.role.slice(0, 2).toUpperCase()}
+              {session.username.slice(0, 2).toUpperCase()}
             </span>
           </div>
         </header>
@@ -329,7 +330,11 @@ export default function App() {
         )}
 
         <main>
-          <div className="page-heading">
+          <div
+            className={"page-heading " + (page === "Dashboard" ? "hero" : "")}
+            key={page}
+          >
+            {page === "Dashboard" && <GridBackdrop />}
             <div>
               <div className="eyebrow">
                 {page === "Dashboard"
@@ -606,22 +611,21 @@ function Login({
   busy: string;
   error: string;
 }) {
-  const [username, setUsername] = useState("manager"),
+  const [username, setUsername] = useState(""),
     [password, setPassword] = useState(""),
+    [reveal, setReveal] = useState(false),
     [demo, setDemo] = useState(false);
 
   useEffect(() => {
     api("/health")
-      .then((r) => {
-        setDemo(r.demo);
-        if (r.demo) setPassword("promise-demo");
-      })
+      .then((r) => setDemo(r.demo))
       .catch(() => {});
   }, []);
 
   return (
     <div className="login-page">
       <div className="login-story">
+        <GridBackdrop />
         <div className="brand">
           <div className="brand-logo-wrap" style={{ padding: "7px 14px" }}>
             <McciaLogo height={26} />
@@ -653,7 +657,7 @@ function Login({
         </span>
       </div>
       <div className="login-form">
-        <div className="brand-logo-wrap" style={{ display: "inline-flex", marginBottom: "20px", padding: "8px 16px", border: "1px solid #e2e8f0" }}>
+        <div className="brand-logo-wrap">
           <McciaLogo height={32} />
         </div>
         <h2>Your planning workspace</h2>
@@ -664,43 +668,35 @@ function Login({
             onLogin(username, password);
           }}
         >
-          <Field label={demo ? "Demo role" : "Username"}>
-            {demo ? (
-              <select
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-              >
-                {[
-                  "manager",
-                  "planner",
-                  "sales",
-                ].map((r) => (
-                  <option key={r} value={r}>
-                    {r === "manager"
-                      ? "Admin / Plant Head (Owner)"
-                      : r === "planner"
-                        ? "Planner / Floor Supervisor"
-                        : "Sales Representative (Promise Check)"}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <input
-                autoComplete="username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-              />
-            )}
+          <Field label="Username">
+            <input
+              autoComplete="username"
+              autoCapitalize="none"
+              spellCheck={false}
+              value={username}
+              onChange={(e) => setUsername(e.target.value.trim())}
+              required
+              autoFocus
+            />
           </Field>
           <Field label="Password">
-            <input
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
+            <span className="password-field">
+              <input
+                type={reveal ? "text" : "password"}
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+              <button
+                type="button"
+                className="icon-button"
+                onClick={() => setReveal(!reveal)}
+                aria-label={reveal ? "Hide password" : "Show password"}
+              >
+                {reveal ? <EyeSlash size={18} /> : <Eye size={18} />}
+              </button>
+            </span>
           </Field>
           {error && (
             <p role="alert" className="red-text">
@@ -716,9 +712,10 @@ function Login({
           <div className="demo-note">
             <span className="badge green">Demo access</span>
             <p>
-              Explore a synthetic Pune manufacturing plant.
-              <br />
-              Demo password: <code>promise-demo</code>
+              This deployment runs a synthetic sample factory. Sign in with a
+              role name such as <code>manager</code>, <code>planner</code> or{" "}
+              <code>sales</code> and the shared demo password{" "}
+              <code>promise-demo</code>.
             </p>
           </div>
         )}

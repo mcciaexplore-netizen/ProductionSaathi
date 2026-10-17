@@ -20,6 +20,7 @@ import {
 import { api, post, fmt, money, futureDate, statusClass } from "./api";
 import type { Data, Row, Run } from "./api";
 import { Badge, Empty, Field, Modal, OrderFields, Panel } from "./ui";
+import { CountUp } from "./motion";
 function ReviewActions({
   id,
   canApprove,
@@ -711,7 +712,9 @@ export function Versions({
           <div className="metric-grid">
             <div className="metric">
               <span>Operations evaluated</span>
-              <strong>{p.operations.length}</strong>
+              <strong>
+                <CountUp value={p.operations.length} />
+              </strong>
               <span className="metric-foot">
                 {moved.length} assignments changed
               </span>
@@ -719,20 +722,22 @@ export function Versions({
             <div className="metric">
               <span>Commitments worsened</span>
               <strong className="amber-text">
-                {impacts.filter((i) => i.newly_at_risk).length}
+                <CountUp value={impacts.filter((i) => i.newly_at_risk).length} />
               </strong>
               <span className="metric-foot">Existing customer commitments</span>
             </div>
             <div className="metric">
               <span>Recovered deliveries</span>
               <strong>
-                {
-                  impacts.filter(
-                    (x) =>
-                      x.before_status !== "ON TIME" &&
-                      x.after_status === "ON TIME",
-                  ).length
-                }
+                <CountUp
+                  value={
+                    impacts.filter(
+                      (x) =>
+                        x.before_status !== "ON TIME" &&
+                        x.after_status === "ON TIME",
+                    ).length
+                  }
+                />
               </strong>
               <span className="metric-foot">Now on time with buffer</span>
             </div>

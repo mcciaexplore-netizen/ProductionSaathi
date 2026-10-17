@@ -2,6 +2,7 @@ import csv
 import hashlib
 import io
 import json
+import mimetypes
 import os
 import secrets
 import threading
@@ -57,6 +58,8 @@ login_attempts = defaultdict(deque)
 DEMO = os.environ.get("PROMISEFLOW_MODE", "demo") == "demo"
 # Serverless instances can be frozen after responding, so planning runs inline.
 SERVERLESS = bool(os.environ.get("VERCEL"))
+# Some hosts (notably Windows) do not map bundled web fonts.
+mimetypes.add_type("font/woff2", ".woff2")
 ROLES = [
     "planner",
     "sales",
@@ -67,6 +70,7 @@ ROLES = [
     "management",
     "admin",
 ]
+MIN_PASSWORD = 16
 WRITE = {"planner", "manager", "admin"}
 APPROVE = {"manager", "admin"}
 
@@ -113,7 +117,7 @@ def create_app(db_path=None, *, db_schema=None):
         password = os.environ.get(
             "PROMISEFLOW_ADMIN_PASSWORD", "promise-demo" if DEMO else ""
         )
-        if not DEMO and len(password) < 16:
+        if not DEMO and len(password) < MIN_PASSWORD:
             raise RuntimeError(
                 "Set PROMISEFLOW_ADMIN_PASSWORD to at least 16 characters in production"
             )
@@ -316,6 +320,165 @@ def create_app(db_path=None, *, db_schema=None):
                 ),
             )
         response.delete_cookie("pf_session")
+        return {"ok": True}
+
+    # ---- Accounts: provisioned by an administrator, never self-registered ----
+    Role = Literal[
+        "admin",
+        "manager",
+        "planner",
+        "sales",
+        "supervisor",
+        "purchase",
+        "maintenance",
+        "management",
+    ]
+
+    class NewUser(Model):
+        username: str = Field(
+            min_length=3, max_length=100, pattern=r"^[A-Za-z0-9._@-]+$"
+        )
+        role: Role
+        password: str = Field(min_length=MIN_PASSWORD, max_length=200)
+
+    class UserChange(Model):
+        role: Role | None = None
+        password: str | None = Field(
+            default=None, min_length=MIN_PASSWORD, max_length=200
+        )
+
+    class PasswordChange(Model):
+        current_password: str = Field(max_length=200)
+        new_password: str = Field(min_length=MIN_PASSWORD, max_length=200)
+
+    def accounts_admin(u):
+        authorize(u, {"admin"})
+        if DEMO:
+            raise HTTPException(
+                403, "Accounts are fixed in the shared demo. Use a production deployment."
+            )
+
+    def other_admins(db, username):
+        return db.execute(
+            "SELECT COUNT(*) FROM users WHERE role='admin' AND username<>?",
+            (username,),
+        ).fetchone()[0]
+
+    @app.get("/api/users")
+    def list_users(u=Depends(user)):
+        accounts_admin(u)
+        with store.connect() as db:
+            return [
+                dict(r)
+                for r in db.execute(
+                    "SELECT username,role FROM users ORDER BY username"
+                )
+            ]
+
+    @app.post("/api/users", status_code=201)
+    def create_user(body: NewUser, u=Depends(user)):
+        accounts_admin(u)
+        with store.connect() as db:
+            if db.execute(
+                "SELECT 1 FROM users WHERE username=?", (body.username,)
+            ).fetchone():
+                raise HTTPException(409, "That username already exists")
+            db.execute(
+                "INSERT INTO users VALUES (?,?,?)",
+                (body.username, body.role, password_hash(body.password)),
+            )
+            store.audit(
+                db,
+                u["username"],
+                "Created user",
+                {"username": body.username, "role": body.role},
+            )
+        return {"username": body.username, "role": body.role}
+
+    @app.put("/api/users/{username}")
+    def change_user(username: str, body: UserChange, u=Depends(user)):
+        accounts_admin(u)
+        with store.connect() as db:
+            row = db.execute(
+                "SELECT role FROM users WHERE username=?", (username,)
+            ).fetchone()
+            if not row:
+                raise HTTPException(404, "User not found")
+            if (
+                body.role
+                and body.role != "admin"
+                and row["role"] == "admin"
+                and not other_admins(db, username)
+            ):
+                raise HTTPException(409, "Keep at least one administrator")
+            if body.role:
+                db.execute(
+                    "UPDATE users SET role=? WHERE username=?", (body.role, username)
+                )
+            if body.password:
+                db.execute(
+                    "UPDATE users SET password=? WHERE username=?",
+                    (password_hash(body.password), username),
+                )
+            if body.role or body.password:
+                # Role or credential changes take effect at the next sign-in.
+                db.execute("DELETE FROM sessions WHERE username=?", (username,))
+            store.audit(
+                db,
+                u["username"],
+                "Updated user",
+                {
+                    "username": username,
+                    "role": body.role,
+                    "password_reset": bool(body.password),
+                },
+            )
+            role = body.role or row["role"]
+        return {"username": username, "role": role}
+
+    @app.delete("/api/users/{username}")
+    def delete_user(username: str, u=Depends(user)):
+        accounts_admin(u)
+        if username == u["username"]:
+            raise HTTPException(409, "You cannot remove your own account")
+        with store.connect() as db:
+            row = db.execute(
+                "SELECT role FROM users WHERE username=?", (username,)
+            ).fetchone()
+            if not row:
+                raise HTTPException(404, "User not found")
+            if row["role"] == "admin" and not other_admins(db, username):
+                raise HTTPException(409, "Keep at least one administrator")
+            db.execute("DELETE FROM sessions WHERE username=?", (username,))
+            db.execute("DELETE FROM users WHERE username=?", (username,))
+            store.audit(db, u["username"], "Removed user", {"username": username})
+        return {"ok": True}
+
+    @app.post("/api/me/password")
+    def change_password(body: PasswordChange, request: Request, u=Depends(user)):
+        if DEMO:
+            raise HTTPException(403, "Demo passwords are shared and cannot be changed")
+        with store.connect() as db:
+            row = db.execute(
+                "SELECT password FROM users WHERE username=?", (u["username"],)
+            ).fetchone()
+            if not password_matches(body.current_password, row["password"]):
+                raise HTTPException(400, "Current password is incorrect")
+            db.execute(
+                "UPDATE users SET password=? WHERE username=?",
+                (password_hash(body.new_password), u["username"]),
+            )
+            # Sign out every other session for this account.
+            db.execute(
+                "DELETE FROM sessions WHERE username=? AND hash<>?",
+                (
+                    u["username"],
+                    hashlib.sha256(
+                        request.cookies.get("pf_session", "").encode()
+                    ).hexdigest(),
+                ),
+            )
+            store.audit(db, u["username"], "Changed own password", {})
         return {"ok": True}
 
     @app.get("/api/factory")
@@ -1084,6 +1247,16 @@ def create_app(db_path=None, *, db_schema=None):
         @app.get("/")
         def index():
             return FileResponse(dist / "index.html")
+
+        # Top-level public files (favicon, logos) copied from frontend/public.
+        for public in dist.iterdir():
+            if public.is_file() and public.name != "index.html":
+                app.add_api_route(
+                    "/" + public.name,
+                    lambda path=public: FileResponse(path),
+                    methods=["GET"],
+                    include_in_schema=False,
+                )
 
     return app
 
