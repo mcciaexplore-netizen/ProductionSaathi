@@ -7,7 +7,7 @@ import os
 import secrets
 import threading
 import time
-from collections import defaultdict, deque
+import pyotp
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -54,7 +54,6 @@ from .execution import (
 
 SOLVER = CpSatProvider()
 solve_lock = threading.Lock()
-login_attempts = defaultdict(deque)
 DEMO = os.environ.get("PROMISEFLOW_MODE", "demo") == "demo"
 # Serverless instances can be frozen after responding, so planning runs inline.
 SERVERLESS = bool(os.environ.get("VERCEL"))
@@ -75,6 +74,9 @@ MIN_PASSWORD = 16
 PENDING = "pending"
 WRITE = {"planner", "manager", "admin"}
 APPROVE = {"manager", "admin"}
+# Privileged roles are nudged to enable MFA; any role that does enable it
+# must then use it (enforced in login(), not role-gated there).
+MFA_NUDGE_ROLES = {"admin", "manager"}
 
 
 def solve(*args, **kwargs):
@@ -261,6 +263,7 @@ def create_app(db_path=None, *, db_schema=None):
     class Login(Model):
         username: str = Field(max_length=100)
         password: str = Field(max_length=200)
+        totp_code: str | None = Field(default=None, max_length=10)
 
     @app.get("/api/health")
     def health():
@@ -274,13 +277,18 @@ def create_app(db_path=None, *, db_schema=None):
         }
 
     def throttle(request: Request):
+        # Own transaction: must commit even if the caller's own request
+        # (e.g. a failed login) later rolls back its transaction.
         key = request.client.host if request.client else "unknown"
-        attempts = login_attempts[key]
-        while attempts and attempts[0] < time.time() - 60:
-            attempts.popleft()
-        if len(attempts) >= 12:
-            raise HTTPException(429, "Too many sign-in attempts. Wait one minute.")
-        attempts.append(time.time())
+        cutoff = time.time() - 60
+        with store.connect() as db:
+            db.execute("DELETE FROM rate_limits WHERE at<?", (cutoff,))
+            count = db.execute(
+                "SELECT COUNT(*) AS n FROM rate_limits WHERE key=? AND at>=?", (key, cutoff)
+            ).fetchone()["n"]
+            if count >= 12:
+                raise HTTPException(429, "Too many sign-in attempts. Wait one minute.")
+            db.execute("INSERT INTO rate_limits VALUES (?,?)", (key, time.time()))
 
     @app.post("/api/login")
     def login(body: Login, request: Request, response: Response):
@@ -295,6 +303,18 @@ def create_app(db_path=None, *, db_schema=None):
                 raise HTTPException(
                     403,
                     "Your account is waiting for an administrator to approve it.",
+                )
+            mfa = db.execute(
+                "SELECT secret, confirmed FROM mfa_secrets WHERE username=?",
+                (body.username,),
+            ).fetchone()
+            mfa_active = bool(mfa and mfa["confirmed"])
+            if mfa_active and not (
+                body.totp_code
+                and pyotp.TOTP(mfa["secret"]).verify(body.totp_code, valid_window=1)
+            ):
+                raise HTTPException(
+                    401, "Enter the 6-digit code from your authenticator app"
                 )
             token = secrets.token_urlsafe(32)
             digest = hashlib.sha256(token.encode()).hexdigest()
@@ -312,7 +332,12 @@ def create_app(db_path=None, *, db_schema=None):
             secure=not DEMO,
             max_age=8 * 3600,
         )
-        return {"username": body.username, "role": row["role"], "demo": DEMO}
+        return {
+            "username": body.username,
+            "role": row["role"],
+            "demo": DEMO,
+            "mfa_setup_recommended": row["role"] in MFA_NUDGE_ROLES and not mfa_active,
+        }
 
     @app.get("/api/me")
     def me(u=Depends(user)):
@@ -360,6 +385,12 @@ def create_app(db_path=None, *, db_schema=None):
     class PasswordChange(Model):
         current_password: str = Field(max_length=200)
         new_password: str = Field(min_length=MIN_PASSWORD, max_length=200)
+
+    class MfaConfirm(Model):
+        code: str = Field(min_length=6, max_length=10)
+
+    class MfaDisable(Model):
+        current_password: str = Field(max_length=200)
 
     class SignUp(Model):
         username: str = Field(
@@ -516,6 +547,66 @@ def create_app(db_path=None, *, db_schema=None):
                 ),
             )
             store.audit(db, u["username"], "Changed own password", {})
+        return {"ok": True}
+
+    @app.get("/api/mfa/status")
+    def mfa_status(u=Depends(user)):
+        with store.connect() as db:
+            row = db.execute(
+                "SELECT confirmed FROM mfa_secrets WHERE username=?",
+                (u["username"],),
+            ).fetchone()
+        return {
+            "enrolled": bool(row),
+            "confirmed": bool(row and row["confirmed"]),
+            "recommended": u["role"] in MFA_NUDGE_ROLES,
+        }
+
+    @app.post("/api/mfa/enroll")
+    def mfa_enroll(u=Depends(user)):
+        if DEMO:
+            raise HTTPException(403, "MFA cannot be configured in the shared demo")
+        secret = pyotp.random_base32()
+        with store.connect() as db:
+            db.execute("DELETE FROM mfa_secrets WHERE username=?", (u["username"],))
+            db.execute(
+                "INSERT INTO mfa_secrets VALUES (?,?,0)", (u["username"], secret)
+            )
+            store.audit(db, u["username"], "Started MFA enrollment", {})
+        uri = pyotp.totp.TOTP(secret).provisioning_uri(
+            name=u["username"], issuer_name="ProductionSaathi"
+        )
+        return {"secret": secret, "otpauth_url": uri}
+
+    @app.post("/api/mfa/confirm")
+    def mfa_confirm(body: MfaConfirm, u=Depends(user)):
+        with store.connect() as db:
+            row = db.execute(
+                "SELECT secret FROM mfa_secrets WHERE username=?", (u["username"],)
+            ).fetchone()
+            if not row or not pyotp.TOTP(row["secret"]).verify(
+                body.code, valid_window=1
+            ):
+                raise HTTPException(400, "Incorrect or expired authentication code")
+            db.execute(
+                "UPDATE mfa_secrets SET confirmed=1 WHERE username=?",
+                (u["username"],),
+            )
+            store.audit(db, u["username"], "Confirmed MFA enrollment", {})
+        return {"ok": True}
+
+    @app.post("/api/mfa/disable")
+    def mfa_disable(body: MfaDisable, u=Depends(user)):
+        if DEMO:
+            raise HTTPException(403, "MFA cannot be configured in the shared demo")
+        with store.connect() as db:
+            row = db.execute(
+                "SELECT password FROM users WHERE username=?", (u["username"],)
+            ).fetchone()
+            if not password_matches(body.current_password, row["password"]):
+                raise HTTPException(400, "Current password is incorrect")
+            db.execute("DELETE FROM mfa_secrets WHERE username=?", (u["username"],))
+            store.audit(db, u["username"], "Disabled MFA", {})
         return {"ok": True}
 
     @app.get("/api/factory")

@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 import pytest
-from backend.app import create_app, login_attempts
+from backend.app import create_app
 from backend.engine import CpSatProvider
 from backend.store import Store, Conflict
 
@@ -13,7 +13,6 @@ def client(storage_target, factory, base):
     result = CpSatProvider().solve(factory, base)
     vid = store.save_version(factory, result, 1, None, "test", "Baseline")
     store.activate(vid, "test")
-    login_attempts.clear()
     with TestClient(create_app(path, db_schema=schema)) as client:
         yield client
 

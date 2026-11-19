@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Key, Trash, UserPlus } from "@phosphor-icons/react";
+import { Key, ShieldCheck, Trash, UserPlus } from "@phosphor-icons/react";
 import { api } from "./api";
 import type { Row, Run } from "./api";
 import { Field, Modal, Panel } from "./ui";
@@ -251,65 +251,226 @@ export function MyAccount({
     [confirm, setConfirm] = useState(""),
     mismatch = confirm.length > 0 && confirm !== next;
   return (
-    <Panel
-      title="My account"
-      sub={`Signed in as ${session.username} · ${session.role}`}
-    >
-      <form
-        className="settings-form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (mismatch) return;
-          run("Changing password", async () => {
-            await api("/me/password", {
-              method: "POST",
-              body: JSON.stringify({
-                current_password: current,
-                new_password: next,
-              }),
-            });
-            setCurrent("");
-            setNext("");
-            setConfirm("");
-            notice("Password changed. Other devices were signed out.");
-          });
-        }}
+    <>
+      <Panel
+        title="My account"
+        sub={`Signed in as ${session.username} · ${session.role}`}
       >
-        <Field label="Current password">
-          <input
-            type="password"
-            required
-            autoComplete="current-password"
-            value={current}
-            onChange={(e) => setCurrent(e.target.value)}
-          />
-        </Field>
-        <div className="form-grid">
-          <Field label={`New password (${MIN_PASSWORD}+ characters)`}>
+        <form
+          className="settings-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (mismatch) return;
+            run("Changing password", async () => {
+              await api("/me/password", {
+                method: "POST",
+                body: JSON.stringify({
+                  current_password: current,
+                  new_password: next,
+                }),
+              });
+              setCurrent("");
+              setNext("");
+              setConfirm("");
+              notice("Password changed. Other devices were signed out.");
+            });
+          }}
+        >
+          <Field label="Current password">
             <input
               type="password"
               required
-              minLength={MIN_PASSWORD}
-              autoComplete="new-password"
-              value={next}
-              onChange={(e) => setNext(e.target.value)}
+              autoComplete="current-password"
+              value={current}
+              onChange={(e) => setCurrent(e.target.value)}
             />
           </Field>
-          <Field label="Confirm new password">
+          <div className="form-grid">
+            <Field label={`New password (${MIN_PASSWORD}+ characters)`}>
+              <input
+                type="password"
+                required
+                minLength={MIN_PASSWORD}
+                autoComplete="new-password"
+                value={next}
+                onChange={(e) => setNext(e.target.value)}
+              />
+            </Field>
+            <Field label="Confirm new password">
+              <input
+                type="password"
+                required
+                autoComplete="new-password"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+              />
+            </Field>
+          </div>
+          {mismatch && <p className="red-text">Passwords do not match.</p>}
+          <button className="primary" disabled={mismatch}>
+            <Key size={17} /> Change password
+          </button>
+        </form>
+      </Panel>
+      {!session.demo && <TwoFactor session={session} run={run} notice={notice} />}
+    </>
+  );
+}
+
+/** Any signed-in user outside the shared demo: set up or remove an
+ * authenticator-app second factor on their own account. */
+function TwoFactor({
+  session,
+  run,
+  notice,
+}: {
+  session: Row;
+  run: Run;
+  notice: (s: string) => void;
+}) {
+  const [status, setStatus] = useState<Row | null>(null),
+    [enrolling, setEnrolling] = useState<Row | null>(null),
+    [code, setCode] = useState(""),
+    [disabling, setDisabling] = useState(false),
+    [disablePassword, setDisablePassword] = useState("");
+  const load = useCallback(
+    () => api("/mfa/status").then(setStatus).catch(() => setStatus(null)),
+    [],
+  );
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const startEnroll = () =>
+    run("Starting two-factor setup", async () => {
+      setEnrolling(await api("/mfa/enroll", { method: "POST" }));
+      setCode("");
+    });
+  const confirmEnroll = () =>
+    run("Confirming code", async () => {
+      await api("/mfa/confirm", {
+        method: "POST",
+        body: JSON.stringify({ code }),
+      });
+      setEnrolling(null);
+      setCode("");
+      await load();
+      notice("Two-factor authentication is enabled on your account.");
+    });
+  const disable = () =>
+    run("Disabling two-factor authentication", async () => {
+      await api("/mfa/disable", {
+        method: "POST",
+        body: JSON.stringify({ current_password: disablePassword }),
+      });
+      setDisabling(false);
+      setDisablePassword("");
+      await load();
+      notice("Two-factor authentication is disabled on your account.");
+    });
+
+  if (!status) return null;
+
+  return (
+    <Panel
+      title="Two-factor authentication"
+      sub={
+        status.confirmed
+          ? "Your account requires a code from your authenticator app to sign in."
+          : status.recommended
+            ? `Recommended for the ${session.role} role: add a code from an authenticator app as a second sign-in step.`
+            : "Add a code from an authenticator app as a second sign-in step."
+      }
+      action={
+        status.confirmed ? <span className="badge green">Enabled</span> : undefined
+      }
+    >
+      {status.confirmed ? (
+        disabling ? (
+          <form
+            className="detail-body"
+            onSubmit={(e) => {
+              e.preventDefault();
+              disable();
+            }}
+          >
+            <Field label="Current password">
+              <input
+                type="password"
+                required
+                autoComplete="current-password"
+                value={disablePassword}
+                onChange={(e) => setDisablePassword(e.target.value)}
+              />
+            </Field>
+            <div className="button-row">
+              <button className="btn danger">Turn off two-factor authentication</button>
+              <button
+                type="button"
+                className="btn secondary"
+                onClick={() => {
+                  setDisabling(false);
+                  setDisablePassword("");
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        ) : (
+          <button className="btn danger" onClick={() => setDisabling(true)}>
+            Turn off two-factor authentication
+          </button>
+        )
+      ) : enrolling ? (
+        <form
+          className="detail-body"
+          onSubmit={(e) => {
+            e.preventDefault();
+            confirmEnroll();
+          }}
+        >
+          <p>
+            Scan this in your authenticator app, or enter the key manually,
+            then type the 6-digit code it shows.
+          </p>
+          <p className="fine-print">
+            <a href={enrolling.otpauth_url}>Open in authenticator app</a>
+          </p>
+          <Field label="Setup key">
+            <code>{enrolling.secret}</code>
+          </Field>
+          <Field label="6-digit code">
             <input
-              type="password"
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
               required
-              autoComplete="new-password"
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
+              minLength={6}
+              maxLength={10}
+              value={code}
+              onChange={(e) => setCode(e.target.value.trim())}
+              autoFocus
             />
           </Field>
-        </div>
-        {mismatch && <p className="red-text">Passwords do not match.</p>}
-        <button className="primary" disabled={mismatch}>
-          <Key size={17} /> Change password
+          <div className="button-row">
+            <button className="primary">
+              <ShieldCheck size={17} /> Confirm and enable
+            </button>
+            <button
+              type="button"
+              className="btn secondary"
+              onClick={() => setEnrolling(null)}
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      ) : (
+        <button className="primary" onClick={startEnroll}>
+          <ShieldCheck size={17} /> Set up two-factor authentication
         </button>
-      </form>
+      )}
     </Panel>
   );
 }

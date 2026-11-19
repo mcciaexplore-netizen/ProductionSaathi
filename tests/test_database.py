@@ -139,12 +139,24 @@ def test_postgres_schema_has_rls_and_no_public_grants(cloud):
             "SELECT c.relrowsecurity FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname=? AND c.relkind='r'",
             (cloud.database.schema,),
         ).fetchall()
-        assert len(rows) == 15 and all(r[0] for r in rows)
+        assert len(rows) == 17 and all(r[0] for r in rows)
         public_access = db.execute(
             "SELECT count(*) FROM pg_namespace n, aclexplode(n.nspacl) a WHERE n.nspname=? AND a.grantee=0",
             (cloud.database.schema,),
         ).fetchone()[0]
         assert public_access == 0
+
+
+def test_db_admin_rls_report_matches_live_lockdown(cloud):
+    from backend.db_admin import rls_report
+
+    with cloud.connect() as db:
+        report = rls_report(db, cloud.database.schema)
+        assert report == {
+            "rls_disabled_tables": [],
+            "unexpected_grants": [],
+            "rls_locked_down": True,
+        }
 
 
 def test_postgres_copy_preserves_plan_and_rejects_overwrite(

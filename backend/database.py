@@ -247,6 +247,8 @@ class Database:
                 "actual_events": f"id {identity}, request_id TEXT NOT NULL UNIQUE, actor TEXT NOT NULL, recorded_at TEXT NOT NULL, order_id TEXT NOT NULL, body TEXT NOT NULL",
                 "execution_closures": "order_id TEXT PRIMARY KEY, actor TEXT NOT NULL, at TEXT NOT NULL, reason TEXT NOT NULL",
                 "actual_corrections": "event_id BIGINT PRIMARY KEY REFERENCES actual_events(id), actor TEXT NOT NULL, at TEXT NOT NULL, reason TEXT NOT NULL",
+                "rate_limits": "key TEXT NOT NULL, at DOUBLE PRECISION NOT NULL",
+                "mfa_secrets": "username TEXT PRIMARY KEY, secret TEXT NOT NULL, confirmed INTEGER NOT NULL DEFAULT 0",
             }
             for table, definition in definitions.items():
                 db.execute(f"CREATE TABLE IF NOT EXISTS {table} ({definition})")
@@ -277,10 +279,10 @@ class Database:
             version = db.execute(
                 "SELECT value FROM meta WHERE key='schema_version'"
             ).fetchone()
-            if version and int(version[0]) > 4:
+            if version and int(version[0]) > 6:
                 raise ValueError(
                     "Database schema is newer than this application; upgrade the server"
                 )
             db.execute(
-                "INSERT INTO meta VALUES ('schema_version','4') ON CONFLICT (key) DO UPDATE SET value=excluded.value"
+                "INSERT INTO meta VALUES ('schema_version','6') ON CONFLICT (key) DO UPDATE SET value=excluded.value"
             )

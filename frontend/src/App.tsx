@@ -176,9 +176,13 @@ export default function App() {
       <Login
         busy={busy}
         error={error}
-        onLogin={(username, password) =>
+        onLogin={(username, password, totpCode) =>
           run("Signing in", async () => {
-            const signedIn = await post("/login", { username, password });
+            const signedIn = await post("/login", {
+              username,
+              password,
+              totp_code: totpCode || undefined,
+            });
             setSession(signedIn);
             setPage(
               ["sales", "planner", "manager", "admin"].includes(signedIn.role)
@@ -643,12 +647,13 @@ function Login({
   busy,
   error,
 }: {
-  onLogin: (u: string, p: string) => void;
+  onLogin: (u: string, p: string, totpCode?: string) => void;
   busy: string;
   error: string;
 }) {
   const [username, setUsername] = useState(""),
     [password, setPassword] = useState(""),
+    [totpCode, setTotpCode] = useState(""),
     [confirm, setConfirm] = useState(""),
     [reveal, setReveal] = useState(false),
     [demo, setDemo] = useState(false),
@@ -657,6 +662,7 @@ function Login({
     [requested, setRequested] = useState(""),
     [sending, setSending] = useState(false);
   const mismatch = signingUp && confirm.length > 0 && confirm !== password;
+  const needsCode = !signingUp && /authenticator app/i.test(error);
 
   const switchMode = (signup: boolean) => {
     setSigningUp(signup);
@@ -742,7 +748,7 @@ function Login({
           onSubmit={(e) => {
             e.preventDefault();
             if (signingUp) requestAccount();
-            else onLogin(username, password);
+            else onLogin(username, password, totpCode);
           }}
         >
           <Field label="Username">
@@ -784,6 +790,21 @@ function Login({
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
                 required
+              />
+            </Field>
+          )}
+          {needsCode && (
+            <Field label="Authenticator code">
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                placeholder="6-digit code"
+                maxLength={10}
+                value={totpCode}
+                onChange={(e) => setTotpCode(e.target.value.trim())}
+                required
+                autoFocus
               />
             </Field>
           )}

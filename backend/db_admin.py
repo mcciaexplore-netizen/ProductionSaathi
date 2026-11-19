@@ -40,12 +40,12 @@ def migrate_sqlite(source, target):
         if src.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
             raise ValueError("Source database integrity check failed")
         meta = dict(src.execute("SELECT key,value FROM meta"))
-        if meta.get("schema_version") != "4" or meta.get("mode") not in (
+        if meta.get("schema_version") not in ("4", "5", "6") or meta.get("mode") not in (
             "demo",
             "production",
         ):
             raise ValueError(
-                "Source must be an initialized schema-4 demo or production database"
+                "Source must be an initialized schema-4, schema-5 or schema-6 demo or production database"
             )
         data = {t: [] for t in TABLES}
         for row in src.execute("SELECT kind,body FROM entities"):
@@ -121,6 +121,35 @@ def migrate_sqlite(source, target):
             return {"mode": meta["mode"], "active_version": active, "counts": counts}
 
 
+LOCKED_OUT_ROLES = ("PUBLIC", "anon", "authenticated", "service_role")
+
+
+def rls_report(db, schema):
+    """Confirm the lockdown applied by Database.initialize() actually holds on
+    the live server, rather than trusting it was never reverted by a manual
+    grant made through the Supabase dashboard after the fact."""
+    disabled = [
+        r[0]
+        for r in db.execute(
+            "SELECT tablename FROM pg_tables WHERE schemaname=? AND rowsecurity=false",
+            (schema,),
+        )
+    ]
+    grants = [
+        {"grantee": r[0], "table": r[1], "privilege": r[2]}
+        for r in db.execute(
+            "SELECT grantee, table_name, privilege_type FROM information_schema.role_table_grants"
+            " WHERE table_schema=? AND grantee=ANY(?)",
+            (schema, list(LOCKED_OUT_ROLES)),
+        )
+    ]
+    return {
+        "rls_disabled_tables": disabled,
+        "unexpected_grants": grants,
+        "rls_locked_down": not disabled and not grants,
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=["check", "migrate"])
@@ -137,23 +166,18 @@ def main():
         else:
             with store.connect() as db:
                 db.execute("SELECT 1").fetchone()
-                print(
-                    json.dumps(
-                        {
-                            "connected": True,
-                            "database": (
-                                "postgresql" if store.database.postgres else "sqlite"
-                            ),
-                            "schema": (
-                                store.database.schema
-                                if store.database.postgres
-                                else None
-                            ),
-                            "revision": store.revision(db),
-                            "active_version": store.active_id(db),
-                        }
-                    )
-                )
+                report = {
+                    "connected": True,
+                    "database": "postgresql" if store.database.postgres else "sqlite",
+                    "schema": (
+                        store.database.schema if store.database.postgres else None
+                    ),
+                    "revision": store.revision(db),
+                    "active_version": store.active_id(db),
+                }
+                if store.database.postgres:
+                    report.update(rls_report(db, store.database.schema))
+                print(json.dumps(report, indent=2))
     except (DatabaseUnavailable, ValueError, sqlite3.Error):
         raise SystemExit(
             "Database setup failed. Check the server-only connection, permissions and source/destination requirements. No credentials are printed."

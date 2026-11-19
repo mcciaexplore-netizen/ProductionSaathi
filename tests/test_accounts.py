@@ -1,7 +1,8 @@
 from fastapi.testclient import TestClient
+import pyotp
 import pytest
 import backend.app as app_module
-from backend.app import create_app, login_attempts
+from backend.app import create_app
 
 ADMIN_PASSWORD = "first-admin-password-123"
 
@@ -11,7 +12,6 @@ def production(storage_target, monkeypatch):
     path, schema = storage_target
     monkeypatch.setattr(app_module, "DEMO", False)
     monkeypatch.setenv("PROMISEFLOW_ADMIN_PASSWORD", ADMIN_PASSWORD)
-    login_attempts.clear()
     # Production session cookies are Secure, so talk to the app over https.
     with TestClient(
         create_app(path, db_schema=schema), base_url="https://testserver"
@@ -76,7 +76,6 @@ def test_user_changes_own_password(production):
 
 def test_accounts_locked_in_demo(storage_target):
     path, schema = storage_target
-    login_attempts.clear()
     with TestClient(create_app(path, db_schema=schema)) as client:
         sign_in(client, "admin", "promise-demo")
         assert client.get("/api/users").status_code == 403
@@ -121,7 +120,81 @@ def test_signup_waits_for_admin_approval(production):
 
 def test_signup_disabled_in_demo(storage_target):
     path, schema = storage_target
-    login_attempts.clear()
     with TestClient(create_app(path, db_schema=schema)) as client:
         r = client.post("/api/signup", json={"username": "x.user", "password": "x" * 16})
         assert r.status_code == 403
+
+
+def test_login_throttle_persists_across_app_instances(storage_target):
+    """Rate limiting lives in the database, not process memory, so it still
+    holds when a second serverless instance (a fresh create_app()) handles
+    the next request against the same database."""
+    path, schema = storage_target
+    for _ in range(12):
+        with TestClient(create_app(path, db_schema=schema)) as client:
+            assert sign_in(client, "manager", "wrong").status_code == 401
+    with TestClient(create_app(path, db_schema=schema)) as client:
+        locked = sign_in(client, "manager", "promise-demo")
+        assert locked.status_code == 429
+
+
+def test_mfa_cannot_be_configured_in_demo(storage_target):
+    path, schema = storage_target
+    with TestClient(create_app(path, db_schema=schema)) as client:
+        sign_in(client, "admin", "promise-demo")
+        assert client.post("/api/mfa/enroll").status_code == 403
+
+
+def test_mfa_enroll_confirm_and_enforce_at_login(production):
+    sign_in(production, "admin", ADMIN_PASSWORD)
+    status = production.get("/api/mfa/status").json()
+    assert status == {"enrolled": False, "confirmed": False, "recommended": True}
+
+    enrolled = production.post("/api/mfa/enroll").json()
+    secret = enrolled["secret"]
+    assert secret in enrolled["otpauth_url"]
+
+    bad = production.post("/api/mfa/confirm", json={"code": "000000"})
+    assert bad.status_code == 400
+
+    code = pyotp.TOTP(secret).now()
+    ok = production.post("/api/mfa/confirm", json={"code": code})
+    assert ok.status_code == 200
+    assert production.get("/api/mfa/status").json()["confirmed"] is True
+
+    production.post("/api/logout")
+    without_code = sign_in(production, "admin", ADMIN_PASSWORD)
+    assert without_code.status_code == 401
+
+    wrong_code = production.post(
+        "/api/login",
+        json={"username": "admin", "password": ADMIN_PASSWORD, "totp_code": "000000"},
+    )
+    assert wrong_code.status_code == 401
+
+    fresh_code = pyotp.TOTP(secret).now()
+    signed_in = production.post(
+        "/api/login",
+        json={
+            "username": "admin",
+            "password": ADMIN_PASSWORD,
+            "totp_code": fresh_code,
+        },
+    )
+    assert signed_in.status_code == 200
+    assert signed_in.json()["mfa_setup_recommended"] is False
+
+
+def test_mfa_disable_requires_current_password(production):
+    sign_in(production, "admin", ADMIN_PASSWORD)
+    secret = production.post("/api/mfa/enroll").json()["secret"]
+    production.post("/api/mfa/confirm", json={"code": pyotp.TOTP(secret).now()})
+
+    denied = production.post("/api/mfa/disable", json={"current_password": "wrong"})
+    assert denied.status_code == 400
+
+    removed = production.post(
+        "/api/mfa/disable", json={"current_password": ADMIN_PASSWORD}
+    )
+    assert removed.status_code == 200
+    assert production.get("/api/mfa/status").json()["enrolled"] is False
